@@ -1,0 +1,11 @@
+[General]
+ignored_bundles = [
+	'com.apple.dock', 
+	'com.apple.dashboard',
+	'com.apple.dock.extra',
+	'com.apple.notificationcenterui',
+	'com.apple.QuickLookDaemon',
+	'com.apple.AppleSpell']
+
+[Minimum Sizes]
+com.kapeli.dash = (580.0, 422.0)
