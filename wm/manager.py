@@ -23,7 +23,7 @@ class ObserverHelper(AppKit.NSObject):
 
 	@objc.typedSelector(b'v@:@')
 	def appLaunched_(self, notification):
-		print 'A new application has launched.'
+		# print 'A new application has launched.'
 		if self.window_manager != None:
 			bundle = notification.userInfo()['NSApplicationBundleIdentifier']
 			pid = notification.userInfo()['NSApplicationProcessIdentifier']
@@ -31,7 +31,7 @@ class ObserverHelper(AppKit.NSObject):
 
 	@objc.typedSelector(b'v@:@')
 	def appTerminated_(self, notification):
-		print 'An application has terminated.'
+		# print 'An application has terminated.'
 		print notification.userInfo()
 		if self.window_manager != None:
 			name = notification.userInfo()['NSApplicationName']
@@ -39,11 +39,15 @@ class ObserverHelper(AppKit.NSObject):
 
 	@objc.typedSelector(b'v@:@')
 	def appHidden_(self, notification):
-		print 'App has been hidden.'
+		# print 'App has been hidden.'
+		if self.window_manager != None:
+ 			self.window_manager.reflow()
 
 	@objc.typedSelector(b'v@:@')
 	def appUnhidden_(self, notification):
-		print 'App has been unhidden.'
+		# print 'App has been unhidden.'
+		if self.window_manager != None:
+ 			self.window_manager.reflow()
 
 	@objc.typedSelector(b'v@:@')
 	def spaceChanged_(self, notification):
@@ -56,7 +60,7 @@ class WindowManager(object):
 	def __init__(self, config_file = 'wm.rc', debug = False):
 		self.update(config_file, debug)
 
-		self._layout = layout.CenterStageLayout(border = 40, ignore_menu = True)
+		self._layout = layout.PanelLayout(border = 40, gutter = 40, ignore_menu = True)
 
 		if debug: print 'Window Manager has finished started up.'
 
@@ -72,6 +76,19 @@ class WindowManager(object):
 			self._apps[app.title] = app
 			for win in app._windows:
 				self._add_window(win)
+
+	def get_managed_windows(self, screen = AppKit.NSScreen.mainScreen(), spaceId = None):
+		_windows = []
+
+		# Don't include those from hidden apps
+		for win in self._windows:
+			if not win._parent.hidden:
+				_windows.append(win)
+
+		return _windows
+
+	def reflow(self):
+		self._layout.reflow(self)
 
 	def app_names(self):
 		return self._apps.keys()
@@ -89,9 +106,3 @@ class WindowManager(object):
 	def _add_window(self, window):
 		if window.resizable:
 			self._windows.append(window)
-
-	def get_managed_windows(self, screen = AppKit.NSScreen.mainScreen(), spaceId = None):
-		return self._windows
-
-	def reflow(self):
-		self._layout.reflow(self)

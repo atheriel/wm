@@ -10,7 +10,7 @@ wm = WindowManager(debug = False)
 observer = ObserverHelper.new()
 observer.window_manager = wm
 
-# wm.reflow()
+wm.reflow()
 
 # Run app loop
 AppKit.NSRunLoop.currentRunLoop().run()
