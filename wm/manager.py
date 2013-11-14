@@ -65,14 +65,14 @@ class WindowManager(object):
 	"""
 	Defines a class that should manage windows on OS X.
 	"""
-	def __init__(self, config_file = 'wm.rc'):
+	def __init__(self, config_file = None):
 		logging.info('Starting window manager.')
 		
 		self.update(config_file)
 
 		self._layout = layout.PanelLayout(border = 40, gutter = 40, ignore_menu = True)
 
-	def update(self, config_file = 'wm.rc'):
+	def update(self, config_file = None):
 		self._apps = dict()
 		self._windows = []
 
