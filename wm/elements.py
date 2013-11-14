@@ -1,5 +1,4 @@
-import AppKit
-import objc
+import AppKit, objc, logging
 
 import wm._accessibility as acbl
 
@@ -25,7 +24,8 @@ class AccessibleApplication(object):
 				windowrefs, error = self._element.get('AXWindows')
 				for ref in windowrefs:
 					self._windows.append(AccessibleWindow(ref, self))
-		else: print error
+		else:
+			logging.debug('Error %d while fetching windows for bundle <%s>.', error, bundle)
 
 	@property
 	def bundle(self):
@@ -36,11 +36,11 @@ class AccessibleApplication(object):
 		if self._title: # Cache the title, since it won't change
 			return self._title
 		else:
-			title, error = self._element.get(AppKit.NSAccessibilityTitleAttribute)
+			title, error = self._element.get('AXTitle')
 			if error == None:
 				self._title = title
 			else:
-				print 'No title found. Error', error
+				logging.debug('No title found for bundle %s. Error %d.', self._bundle, error)
 			return self._title
 
 	@property
@@ -49,7 +49,7 @@ class AccessibleApplication(object):
 		if error == None:
 			return _hidden
 		else:
-			print 'Error: %d' % error
+			logging.debug('No AXHidden property found for bundle %s. Error %d.', self._bundle, error)
 			return None
 
 	@hidden.setter
@@ -71,7 +71,7 @@ class AccessibleWindow(object):
 		if error == None:
 			return _pos
 		else:
-			print 'Error: %d' % error
+			logging.debug('No AXPosition property found for window in app %s. Error %d.', self._parent.title, error)
 			return None
 
 	@position.setter
@@ -84,7 +84,7 @@ class AccessibleWindow(object):
 		if error == None:
 			return _size
 		else:
-			print 'Error: %d' % error
+			logging.debug('No AXSize property found for window in app %s. Error %d.', self._parent.title, error)
 			return None
 
 	@size.setter
@@ -110,34 +110,36 @@ class AccessibleWindow(object):
 	def resizable(self):
 	    return self._element.can_set('AXSize') and self._element.can_set('AXPosition')
 
-def new_application(pid, bundle, debug = False):
+def new_application(pid, bundle):
 	app = None
 	ref = acbl.create_application_ref(pid)
 	role, error = ref.get(AppKit.NSAccessibilityRoleAttribute)
 	
-	if error == -25211 and debug:
-		print '>   Bundle <%s> is not available to the Accessibility API.' % bundle
-	elif error != None and debug:
-		print '>   Bundle <%s> role request failed with error %d.' % (bundle, error)
+	if error == -25211:
+		logging.debug('Bundle <%s> is not available to the Accessibility API.', bundle)
+	elif error != None:
+		logging.debug('Bundle <%s> role request failed with error %d.', bundle, error)
 	elif role == u'AXApplication':
 		app = AccessibleApplication(ref, bundle)
-		if debug: print '>   Bundle <%s> is an accessible application.' % bundle
+		logging.debug('Bundle <%s> is an accessible application.', bundle)
 	elif debug:
-		print '>   Bundle <%s> is not an accessible application, role is %s.' % (bundle, role)
+		logging.debug('Bundle <%s> is not an accessible application, role is %s.', bundle, role)
 
 	return app
 
-def get_accessible_applications(ignored_bundles = [], debug = False):
+def get_accessible_applications(ignored_bundles = []):
 	"""
 	Get a list of all available AccessibleApplications.
 
-	:param [str,] ignored_bundles: Bundles that should not be included.
-	:param bool debug: Whether to print debugging information.
+	:param [str, ...] ignored_bundles: Bundles that should not be included.
 	"""
 	running_apps = []
+	_ignored = []
+	_unavailable = []
+	_accessibile = []
 		
 	# Get all running apps
-	if debug: print 'Getting running applications from the sharedWorkspace...'
+	logging.debug('Getting running applications from the sharedWorkspace.')
 	workspace = AppKit.NSWorkspace.sharedWorkspace()
 	for application in workspace.runningApplications():
 		
@@ -146,7 +148,7 @@ def get_accessible_applications(ignored_bundles = [], debug = False):
 			continue
 		# Apps we should ignore
 		if application.bundleIdentifier() in ignored_bundles:
-			if debug: print '>   Bundle <%s> will be ignored.' % application.bundleIdentifier()
+			_ignored.append(application.bundleIdentifier())
 			continue
 		
 		# Create AXUIElementRef
@@ -154,14 +156,17 @@ def get_accessible_applications(ignored_bundles = [], debug = False):
 		role, error = ref.get(AppKit.NSAccessibilityRoleAttribute)
 		
 		# Deal with errors/responses
-		if error == -25211 and debug:
-			print '>   Bundle <%s> is not available to the Accessibility API.' % application.bundleIdentifier()
-		elif error != None and debug:
-			print '>   Bundle <%s> role request failed with error %d.' % (application.bundleIdentifier(), error)
+		if error == -25211:
+			_unavailable.append(application.bundleIdentifier())
+		elif error != None:
+			logging.debug('Bundle <%s> role request failed with error %d.', application.bundleIdentifier(), error)
 		elif role == u'AXApplication':
 			running_apps.append(AccessibleApplication(ref, application.bundleIdentifier()))
-			if debug: print '>   Bundle <%s> is an accessible application.' % application.bundleIdentifier()
-		elif debug:
-			print '>   Bundle <%s> is not an accessible application, role is %s.' % (application.bundleIdentifier(), role)
+			_accessibile.append(application.bundleIdentifier())
+		else:
+			_unavailable.append(application.bundleIdentifier())
 	
+	logging.debug('Current accessible application bundles: <%s>.', '>, <'.join(_accessibile))
+	logging.debug('Currently ignored bundles: <%s>.', '>, <'.join(_ignored))
+	logging.debug('Unavailable bundles: <%s>.', '>, <'.join(_unavailable))
 	return running_apps

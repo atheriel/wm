@@ -5,7 +5,8 @@ ignored_bundles = [
 	'com.apple.dock.extra',
 	'com.apple.notificationcenterui',
 	'com.apple.QuickLookDaemon',
-	'com.apple.AppleSpell']
+	'com.apple.AppleSpell',
+	'com.google.Chrome.helper']
 
 [Minimum Sizes]
 com.kapeli.dash = (580.0, 422.0)

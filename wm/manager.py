@@ -1,4 +1,4 @@
-import AppKit, objc
+import AppKit, objc, logging
 
 import elements, config, layout
 
@@ -18,12 +18,13 @@ class ObserverHelper(AppKit.NSObject):
 			nc.addObserver_selector_name_object_(self, self.appHidden_, 'NSWorkspaceDidHideApplicationNotification', None)
 			nc.addObserver_selector_name_object_(self, self.appUnhidden_, 'NSWorkspaceDidUnhideApplicationNotification', None)
 			nc.addObserver_selector_name_object_(self, self.spaceChanged_, 'NSWorkspaceActiveSpaceDidChangeNotification', None)
+
+			logging.info('An ObserverHelper is now watchig notifications in the workspace.')
 		
 		return self
 
 	@objc.typedSelector(b'v@:@')
 	def appLaunched_(self, notification):
-		# print 'A new application has launched.'
 		if self.window_manager != None:
 			bundle = notification.userInfo()['NSApplicationBundleIdentifier']
 			pid = notification.userInfo()['NSApplicationProcessIdentifier']
@@ -31,7 +32,6 @@ class ObserverHelper(AppKit.NSObject):
 
 	@objc.typedSelector(b'v@:@')
 	def appTerminated_(self, notification):
-		# print 'An application has terminated.'
 		print notification.userInfo()
 		if self.window_manager != None:
 			name = notification.userInfo()['NSApplicationName']
@@ -39,43 +39,52 @@ class ObserverHelper(AppKit.NSObject):
 
 	@objc.typedSelector(b'v@:@')
 	def appHidden_(self, notification):
-		# print 'App has been hidden.'
-		if self.window_manager != None:
- 			self.window_manager.reflow()
+		try:
+			name = notification.userInfo()['NSWorkspaceApplicationKey'].localizedName()
+			logging.debug('Application \'%s\' has been hidden.', name)
+			if self.window_manager != None:
+	 			self.window_manager.reflow()
+	 	except KeyError:
+	 		logging.debug('The notification did not contain the expected dictionary entry.')
 
 	@objc.typedSelector(b'v@:@')
 	def appUnhidden_(self, notification):
-		# print 'App has been unhidden.'
-		if self.window_manager != None:
- 			self.window_manager.reflow()
+		try:
+			name = notification.userInfo()['NSWorkspaceApplicationKey'].localizedName()
+			logging.debug('Application \'%s\' is no longer hidden.', name)
+			if self.window_manager != None:
+	 			self.window_manager.reflow()
+	 	except KeyError:
+	 		logging.debug('The notification did not contain the expected dictionary entry.')
 
 	@objc.typedSelector(b'v@:@')
 	def spaceChanged_(self, notification):
-		print 'User has changed spaces.'
+		logging.debug('User has changed spaces.')
 
 class WindowManager(object):
 	"""
 	Defines a class that should manage windows on OS X.
 	"""
-	def __init__(self, config_file = 'wm.rc', debug = False):
-		self.update(config_file, debug)
+	def __init__(self, config_file = 'wm.rc'):
+		logging.info('Starting window manager.')
+		
+		self.update(config_file)
 
 		self._layout = layout.PanelLayout(border = 40, gutter = 40, ignore_menu = True)
 
-		if debug: print 'Window Manager has finished started up.'
-
-	def update(self, config_file = 'wm.rc', debug = False):
-		self._debug = debug
+	def update(self, config_file = 'wm.rc'):
 		self._apps = dict()
 		self._windows = []
 
 		# Load running apps
 		config.read_config(config_file)
-		apps = elements.get_accessible_applications(config.IGNORED_BUNDLES, self._debug)
+		apps = elements.get_accessible_applications(config.IGNORED_BUNDLES)
 		for app in apps:
 			self._apps[app.title] = app
 			for win in app._windows:
 				self._add_window(win)
+
+		logging.info('The window manager is now aware of: %s', ', '.join(self._apps.keys()))
 
 	def get_managed_windows(self, screen = AppKit.NSScreen.mainScreen(), spaceId = None):
 		_windows = []
@@ -88,6 +97,7 @@ class WindowManager(object):
 		return _windows
 
 	def reflow(self):
+		logging.info('Reflowing...')
 		self._layout.reflow(self)
 
 	def app_names(self):
@@ -95,13 +105,14 @@ class WindowManager(object):
 
 	def _add_app(self, pid, bundle):
 		if not bundle in config.IGNORED_BUNDLES:
-			app = elements.new_application(pid, bundle, self._debug)
+			app = elements.new_application(pid, bundle)
 			if app:
 				self._apps[app.title] = app
+				logging.info('The window manager is now aware of %s.', app.title)
 	
 	def _remove_app(self, name):
 		del self._apps[name]
-		if self._debug: print 'Application %s has been removed from the window manager.' % name
+		logging.info('The window manager is no longer aware of %s.', name)
 
 	def _add_window(self, window):
 		if window.resizable:
