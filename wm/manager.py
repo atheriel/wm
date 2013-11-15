@@ -26,13 +26,13 @@ class ObserverHelper(AppKit.NSObject):
 	@objc.typedSelector(b'v@:@')
 	def appLaunched_(self, notification):
 		if self.window_manager != None:
+			logging.info('New app launched.')
 			bundle = notification.userInfo()['NSApplicationBundleIdentifier']
 			pid = notification.userInfo()['NSApplicationProcessIdentifier']
 			self.window_manager._add_app(pid, bundle)
 
 	@objc.typedSelector(b'v@:@')
 	def appTerminated_(self, notification):
-		print notification.userInfo()
 		if self.window_manager != None:
 			name = notification.userInfo()['NSApplicationName']
 			self.window_manager._remove_app(name)
@@ -70,7 +70,7 @@ class WindowManager(object):
 		
 		self.update(config_file)
 
-		self._layout = layout.PanelLayout(border = 40, gutter = 40, ignore_menu = True)
+		self._layout = layout.VerticalSplitLayout(border = 40, gutter = 40, ratio = 0.5, ignore_menu = True)
 
 	def update(self, config_file = None):
 		self._apps = dict()
@@ -91,7 +91,12 @@ class WindowManager(object):
 
 		# Don't include those from hidden apps
 		for win in self._windows:
-			if not win._parent.hidden:
+			if win._parent.hidden:
+				logging.debug('Window is currently hidden.')
+			elif win.minimized:
+				logging.debug('Window is currently minimized.')
+			else:
+				logging.debug('Minimized: %s.', win.minimized)
 				_windows.append(win)
 
 		return _windows
@@ -108,11 +113,17 @@ class WindowManager(object):
 			app = elements.new_application(pid, bundle)
 			if app:
 				self._apps[app.title] = app
+				for win in app._windows:
+					self._add_window(win)
 				logging.info('The window manager is now aware of %s.', app.title)
+				self.reflow()
 	
 	def _remove_app(self, name):
+		for win in self._windows:
+			if win._parent.title == name: self._windows.remove(win)
 		del self._apps[name]
 		logging.info('The window manager is no longer aware of %s.', name)
+		self.reflow()
 
 	def _add_window(self, window):
 		if window.resizable:

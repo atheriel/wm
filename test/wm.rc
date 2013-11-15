@@ -9,4 +9,7 @@ ignored_bundles = [
 	'com.google.Chrome.helper']
 
 [Minimum Sizes]
+com.apple.ActivityMonitor = (640.0, 462.0)
 com.kapeli.dash = (580.0, 422.0)
+com.apple.finder = (437.0, 278.0)
+com.google.Chrome = (320, 240)

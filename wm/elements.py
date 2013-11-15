@@ -110,7 +110,20 @@ class AccessibleWindow(object):
 	def resizable(self):
 	    return self._element.can_set('AXSize') and self._element.can_set('AXPosition')
 
+	@property
+	def minimized(self):
+		_min, error = self._element.get('AXMinimized')
+		if error == None:
+			return _min
+		else:
+			logging.debug('No AXMinimized property found for window in app %s. Error %d.', self._parent.title, error)
+			return None
+
 def new_application(pid, bundle):
+	"""
+	Create an AccessibleApplication manually using its PID and bundle
+	identifier.
+	"""
 	app = None
 	ref = acbl.create_application_ref(pid)
 	role, error = ref.get(AppKit.NSAccessibilityRoleAttribute)
