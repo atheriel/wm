@@ -4,9 +4,19 @@ from AppKit import NSScreen
 
 class Layout(object):
 
+	__required_fields__ = []
+
 	def __init__(self, **kwargs):
+		# Add an arbitrary number of attributes
 		for key, value in kwargs.items():
 			setattr(self, key, value)
+
+		# Check that all required attributes are present
+		for field in self.__required_fields__:
+			try:
+				getattr(self, field)
+			except AttributeError:
+				raise RuntimeError('The required field \'%s\' is missing.' % field)
 
 	def prepare(self, window_manager):
 		pass
@@ -37,6 +47,8 @@ class CenterStageLayout(Layout):
 
 	"""
 
+	__required_fields__ = ['border', 'ignore_menu']
+
 	def reflow(self, window_manager = None, screen = NSScreen.mainScreen(), space_id = None):
 		menubar_offset = 0 if self.ignore_menu else 22
 		
@@ -64,6 +76,8 @@ class PanelLayout(Layout):
 		layout = PanelLayout(border = 40, gutter = 40, ignore_menu = False)
 
 	"""
+
+	__required_fields__ = ['border', 'gutter', 'ignore_menu']
 
 	def reflow(self, window_manager = None, screen = NSScreen.mainScreen(), space_id = None):
 		menubar_offset = 0 if self.ignore_menu else 22
@@ -102,6 +116,8 @@ class VerticalSplitLayout(Layout):
 		layout = VerticalSplitLayout(border = 40, gutter = 40, ratio = 0.5, ignore_menu = False)
 
 	"""
+
+	__required_fields__ = ['border', 'gutter', 'ratio', 'ignore_menu']
 
 	def reflow(self, window_manager = None, screen = NSScreen.mainScreen(), space_id = None):
 		menubar_offset = 0 if self.ignore_menu else 22
