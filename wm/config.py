@@ -3,7 +3,7 @@ from ConfigParser import RawConfigParser
 
 __config_dir__ = 'wm'
 __config_file__ = 'wm.rc'
-__default_dir__ = '.'
+__default_dir__ = os.path.join(os.path.dirname(__file__), 'config')
 
 IGNORED_BUNDLES = []
 MIN_SIZES = dict()

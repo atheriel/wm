@@ -1,3 +1,5 @@
 build/
 config/
-scripts/
+
+*.so
+*.egg-info

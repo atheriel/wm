@@ -1,3 +1,5 @@
+# This is the default config file for wm
+
 [General]
 ignored_bundles = [
 	'com.apple.dock', 

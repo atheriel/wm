@@ -1,6 +1,6 @@
 import AppKit, objc, logging
 
-import wm._accessibility as acbl
+import _accessibility as acbl
 
 class AccessibleApplication(object):
 	"""
