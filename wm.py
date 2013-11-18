@@ -7,6 +7,11 @@ except ImportError:
 	print 'wm has not been installed properly.'
 	exit(1)
 
+if not wm.accessibility_check():
+	print 'Accessibility must be enabled on this system before this program can run:'
+	print '    System Preferences -> Accessibility -> Enable access for assistive devices.'
+	exit(1)
+
 import signal
 # Allow quitting with CTRL-C
 signal.signal(signal.SIGINT, signal.SIG_DFL)
