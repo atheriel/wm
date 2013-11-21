@@ -1,8 +1,19 @@
-import AppKit, objc, logging
+import logging
+import objc
+from Quartz import *
 
 import elements, config, layout
 
-class ObserverHelper(AppKit.NSObject):
+def _add_hotkey_callback(func):
+	mask = CGEventMaskBit(kCGEventKeyDown)
+	tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, func, None)
+	tap_source = CFMachPortCreateRunLoopSource(None, tap, 0)
+	CFRunLoopAddSource(CFRunLoopGetCurrent(), tap_source, kCFRunLoopDefaultMode)
+
+	# Enable the tap
+	CGEventTapEnable(tap, True)
+
+class ObserverHelper(NSObject):
 	"""
 	Watches several notifications important to the WindowManager.
 	"""
@@ -12,7 +23,7 @@ class ObserverHelper(AppKit.NSObject):
 			self.window_manager = None
 
 			# Start watching notifications
-			nc = AppKit.NSWorkspace.sharedWorkspace().notificationCenter()
+			nc = NSWorkspace.sharedWorkspace().notificationCenter()
 			nc.addObserver_selector_name_object_(self, self.appLaunched_, 'NSWorkspaceDidLaunchApplicationNotification', None)
 			nc.addObserver_selector_name_object_(self, self.appTerminated_, 'NSWorkspaceDidTerminateApplicationNotification', None)
 			nc.addObserver_selector_name_object_(self, self.appHidden_, 'NSWorkspaceDidHideApplicationNotification', None)
@@ -86,7 +97,7 @@ class WindowManager(object):
 
 		logging.info('The window manager is now aware of: %s', ', '.join(self._apps.keys()))
 
-	def get_managed_windows(self, screen = AppKit.NSScreen.mainScreen(), spaceId = None):
+	def get_managed_windows(self, screen = NSScreen.mainScreen(), spaceId = None):
 		_windows = []
 
 		# Don't include those from hidden apps

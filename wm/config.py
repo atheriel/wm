@@ -4,9 +4,17 @@ from ConfigParser import RawConfigParser
 __config_dir__ = 'wm'
 __config_file__ = 'wm.rc'
 __default_dir__ = os.path.join(os.path.dirname(__file__), 'config')
+__mod_masks__ = {
+	'shift': 131072,
+	'ctrl': 262144,
+	'alt': 524288,
+	'cmd': 1048576,
+	'fn': 8388608,
+}
 
 IGNORED_BUNDLES = []
 MIN_SIZES = dict()
+HOTKEYS = dict()
 
 def get_config_dir():
 	"""
@@ -53,6 +61,7 @@ def read_config(filename = None):
 	"""
 	global IGNORED_BUNDLES
 	global MIN_SIZES
+	global HOTKEYS
 
 	if filename == None:
 		filename = os.path.join(get_config_dir(), __config_file__)
@@ -66,3 +75,17 @@ def read_config(filename = None):
 	
 	for name, value in config.items('Minimum Sizes'):
 		MIN_SIZES[name] = ast.literal_eval(value)
+
+	# Load arbitrary hotkeys (mod + [, mod...] + keycode)
+	for name, value in config.items('HotKeys'):
+		entries = value.split(' ')
+		length = len(entries)
+		if length < 2:
+			raise RuntimeException('Bad config file. Hotkeys must have >= 2 entries.')
+
+		hotkey = [0, int(entries[length - 1])] # [mod_mask, keycode]
+		for i in entries[:length - 2]:
+			hotkey[0] |= int(__mod_masks__[i])
+
+		HOTKEYS[name] = hotkey
+		logging.debug('Hotkey registered for \'%s\': %d, %d', name, hotkey[0], hotkey[1])

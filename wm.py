@@ -39,7 +39,7 @@ def main():
 
 	options.add_argument('--config', metavar = 'FILE', type = file, nargs = 1,
 		help = 'load the configuration in FILE')
-	options.add_argument('-V', '--log-level', metavar='N', default = 'INFO', choices = ['DEBUG', 'INFO', 'WARNING'], nargs = 1, 
+	options.add_argument('-V', '--log-level', metavar='N', default = 'INFO', choices = ['DEBUG', 'INFO', 'WARNING'], nargs = 1, type = str,
 		help = 'the level of info logged to the console, which can be one of INFO, DEBUG, or WARNING (default: %(default)s)')
 	options.add_argument('-q', '--quiet', action = 'store_true', help = 'suppress output')
 
@@ -64,12 +64,15 @@ def main():
 		copy_config()
 		exit(0)
 
+	if isinstance(args.log_level, list): # silly argparse...
+		args.log_level = args.log_level[0]
+	
 	import logging
 
 	logging.basicConfig(
 	    filename = "/tmp/wm.log",
 	    filemode = "w",
-	    level = getattr(logging, args.log_level.upper()),
+	    level = getattr(logging, args.log_level),
 	    format = '[%(asctime)s][%(levelname)s] %(message)s',
 	    datefmt = '%y-%m-%d %H:%M:%S')
 
@@ -80,18 +83,37 @@ def main():
 	logging.getLogger().addHandler(console)
 	console.setLevel(getattr(logging, args.log_level.upper()))
 
-	from AppKit import NSRunLoop
-	from wm.manager import WindowManager, ObserverHelper
+	import wm.config
+	import wm.manager
+	from Quartz import CFRunLoopRun, NSEvent
 
 	# New window manager & notification observer
-	wm = WindowManager()
-	observer = ObserverHelper.new()
-	observer.window_manager = wm
+	WM = wm.manager.WindowManager()
+	observer = wm.manager.ObserverHelper.new()
+	observer.window_manager = WM
 
-	wm.reflow()
+	WM.reflow()
+
+	# Allows calling arbitrary methods of WindowManager with hotkeys
+	def hotkey_handler(proxy, type, event, refcon):
+		keyEvent = NSEvent.eventWithCGEvent_(event)
+		flags = keyEvent.modifierFlags()
+		
+		if flags != 0: # any key event we want deals with mod keys
+			code = keyEvent.keyCode()
+			
+			# Cycle through registered hotkeys
+			for name, value in wm.config.HOTKEYS.items():
+				if (value[0] & flags) and value[1] == code:
+					# call the name of the hotkey as a function
+					getattr(WM, name)()
+					logging.debug('Called method \'%s\' in response to hotkey.', name)
+					continue
+
+	wm.manager._add_hotkey_callback(hotkey_handler)
 
 	# Run app loop
-	NSRunLoop.currentRunLoop().run()
+	CFRunLoopRun()
 
 if __name__ == "__main__":
 	main()

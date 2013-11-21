@@ -10,6 +10,9 @@ ignored_bundles = [
 	'com.apple.AppleSpell',
 	'com.google.Chrome.helper']
 
+[HotKeys]
+reflow = ctrl alt 15
+
 [Minimum Sizes]
 com.apple.ActivityMonitor = (640.0, 462.0)
 com.kapeli.dash = (580.0, 422.0)
