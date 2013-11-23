@@ -77,48 +77,45 @@ static PyObject * names(AccessibleElement * self, PyObject * args) {
 
 PyDoc_STRVAR(count_docstring, "count(attribute_names)"
     "\n\nReturns the number of values for the specified attribute name(s) (possibly "
-    "\nzero) and the error (possibly None). If the element does not possess this "
-    "\nattribute, this method will raise a ValueError."
+    "\nzero). If the element does not possess this/these attribute(s), this method will "
+    "\nraise a ValueError."
     "\n\n:param attribute_names: Either a single name or a series of names, all strings."
-    "\n:rval: A tuple of the values and the error."
+    "\n:rvalue: Either a single value's count or a tuple of the values' counts."
     "\n\n A common usage might look like::"
-    "\n\n\trole_count, error = element.count('AXRole')"
-    "\n\tif error == None: print role_count"
-    "\n\nUsing more than one attribute name::"
-    "\n\n\tvalue_counts, error = element.get('AXRole', 'AXRoleDescription')"
-    "\n\tif error == None:"
-    "\n\t\tprint value[0], value[1]"
-    "\n\telse:"
-    "\n\t\tprint error"
-    "\n\nThe errors themselves are numbers whose exact meaning varies; see the "
-    "\nAccessibility API documentation for details.");
+    "\n\n\ttry:"
+    "\n\t\trole_count = element.count('AXRole')"
+    "\n\t\tprint 'Count for AXRole: %d and AXRoleDescription: %d' % role_count"
+    "\n\texcept ValueError:"
+    "\n\t\tprint 'I guess those aren't available...'");
 
 static PyObject * count(AccessibleElement * self, PyObject * args) {
-    PyObject * result = NULL;
-    PyObject * list = NULL;
+    PyObject * result = Py_None;
     // This allows for retrieving multiple objects, so find how many were
     // requested and loop over them.
     Py_ssize_t attribute_count = PyTuple_Size(args);
     if (attribute_count > 1) {
-        list = PyTuple_New(attribute_count);
+        result = PyTuple_New(attribute_count);
     }
 
     for (int i = 0; i < attribute_count; i++) {
         PyObject * attribute = NULL;
         PyObject * name = PyTuple_GetItem(args, (Py_ssize_t) i);
         if (!name) {
+            if (attribute_count > 1) Py_DECREF(result);
             return NULL; // PyTuple_GetItem will set an Index error.
         }
         if (PyUnicode_Check(name)) { // Handle Unicode strings
             name = PyUnicode_AsUTF8String(name);
         }
         if (!PyString_Check(name)) {    
+            if (attribute_count > 1) Py_DECREF(result);
             PyErr_SetString(PyExc_TypeError, "Non-string attribute names are not permitted.");
             return NULL;
         }
          // Get a string representation of the attribute name
         const char * name_string = PyString_AsString(name);
         if (!name_string) {
+            if (attribute_count > 1) Py_DECREF(result);
             PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
             return NULL;
         }
@@ -134,24 +131,20 @@ static PyObject * count(AccessibleElement * self, PyObject * args) {
         if (error == kAXErrorSuccess) {
             attribute = Py_BuildValue("i", count);
             if (attribute_count > 1) {
-                PyTuple_SetItem(list, i, attribute);
+                PyTuple_SetItem(result, i, attribute);
             } else {
-                result = Py_BuildValue("OO", attribute, Py_None);
+                result = attribute;
             }
-        } else if (error == kAXErrorAttributeUnsupported) { // Most common failure case
-            PyErr_SetString(PyExc_ValueError, formattedMessage("The %s attribute is not supported by this element.", name_string));
-            return NULL;
+        // } else if (error == kAXErrorAttributeUnsupported) { // Most common failure case
+        //     if (attribute_count > 1) Py_DECREF(result);
+        //     PyErr_SetString(PyExc_ValueError, formattedMessage("The %s attribute is not supported by this element.", name_string));
+        //     return NULL;
         } else {
-            // If any of the requests fail, immediately return (None, error)
-            if (attribute_count > 1) {
-                Py_DECREF(list);
-            }
-            result = Py_BuildValue("OO", Py_None, Py_None);
-            return result;
+            // If any of the requests fail, immediately return
+            if (attribute_count > 1) Py_DECREF(result);
+            handleAXErrors(name_string, error);
+            return NULL;
         }
-    }
-    if (attribute_count > 1) {
-        result = Py_BuildValue("Oi", list, kAXErrorSuccess);
     }
     return result;
 }

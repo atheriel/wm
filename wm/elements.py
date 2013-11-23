@@ -18,14 +18,14 @@ class AccessibleApplication(object):
 			self._systemwide_element = acbl.create_systemwide_ref()
 
 		# Gets the windows
-		num_windows, error = self._element.count('AXWindows')
-		if error == None:
+		try:
+			num_windows = self._element.count('AXWindows')
 			if num_windows != 0:
 				windowrefs, error = self._element.get('AXWindows')
 				for ref in windowrefs:
 					self._windows.append(AccessibleWindow(ref, self))
-		else:
-			logging.debug('Error %d while fetching windows for bundle <%s>.', error, bundle)
+		except Exception as e:
+			logging.debug('Error while fetching windows for bundle <%s>: %s', bundle, e.value)
 
 	@property
 	def bundle(self):
