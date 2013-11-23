@@ -37,6 +37,12 @@ static PyObject * is_enabled(PyObject *);
 static PyObject * create_application_ref(PyObject *, PyObject *);
 static PyObject * create_systemwide_ref(PyObject *, PyObject *);
 
+// Exceptions
+PyDoc_STRVAR(InvalidUIElementError_docstring, 
+    "Raised when a reference to some AccessibleElement is no longer valid, "
+    "\nusually because the process is dead.");
+static PyObject * InvalidUIElementError;
+
 // Internal functions
 static PyObject * parseCFTypeRef(const CFTypeRef);
 static AccessibleElement * elementWithRef(AXUIElementRef *);
@@ -486,6 +492,9 @@ init_accessibility(void) {
 
     Py_INCREF(&AccessibleElement_type);
     PyModule_AddObject(m, "AccessibleElement", (PyObject *) &AccessibleElement_type);
+
+    InvalidUIElementError = PyErr_NewExceptionWithDoc("wm._accessibility.InvalidUIElementError", InvalidUIElementError_docstring, PyExc_ValueError, NULL);
+    PyModule_AddObject(m, "InvalidUIElementError", InvalidUIElementError);
 }
 
 // Internal functions
@@ -622,7 +631,7 @@ static void handleAXErrors(char * attribute_name, AXError error) {
             break;
 
         case kAXErrorInvalidUIElement:
-            PyErr_SetString(PyExc_ValueError, formattedMessage("This element is no longer valid (perhaps the application has been closed?)."));
+            PyErr_SetString(InvalidUIElementError, formattedMessage("This element is no longer valid (perhaps the application has been closed?)."));
             break;
 
         case kAXErrorNotImplemented:
