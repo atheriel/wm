@@ -139,3 +139,6 @@ class WindowManager(object):
 	def _add_window(self, window):
 		if window.resizable:
 			self._windows.append(window)
+			logging.debug('Added window for application %s.', window._parent.title)
+		else:
+			logging.debug('Window for application %s is not resizable. Ignoring it.', window._parent.title)

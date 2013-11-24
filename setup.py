@@ -6,6 +6,7 @@ accessibility = Extension(
 	'wm._accessibility', 
 	sources = ['wm/_accessibility.c'],
 	include_dirs = ['/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/Headers'],
+    extra_compile_args = ['-g'],
 	extra_link_args = ['-framework', 'ApplicationServices', '-v']
 )
 

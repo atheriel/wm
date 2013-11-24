@@ -5,8 +5,6 @@
 #include "AXError.h"
 #include "AXUIElement.h"
 #include "AXValue.h"
-// #include "CFBase.h"
-// #include "CGGeometry.h"
 
 /*
  * Intended to allow formatted error messages. Format strings work like
@@ -26,6 +24,10 @@ char * formattedMessage(char * format, ...) {
     return strdup(buf);
 }
 
+/* ========
+    Module API
+======== */
+
 // Member classes
 typedef struct {
     PyObject_HEAD
@@ -39,15 +41,28 @@ static PyObject * create_systemwide_ref(PyObject *, PyObject *);
 
 // Exceptions
 PyDoc_STRVAR(InvalidUIElementError_docstring, 
-    "Raised when a reference to some AccessibleElement is no longer valid, "
-    "\nusually because the process is dead.");
+    "Raised when a reference to some AccessibleElement is no longer valid, usually "
+    "\nbecause the process is dead.");
 static PyObject * InvalidUIElementError;
 
-// Internal functions
+PyDoc_STRVAR(APIDisabledError_docstring, 
+    "Raised when a the Accessibility API is disabled for some reference. Usually this is "
+    "\nbecause the user needs to enable Accessibility, although some Apple applications "
+    "\nare known to respond with this error regardless.");
+static PyObject * APIDisabledError;
+
+/* ========
+    Private members
+======== */
+
 static PyObject * parseCFTypeRef(const CFTypeRef);
 static AccessibleElement * elementWithRef(AXUIElementRef *);
 static void handleAXErrors(char *, AXError);
 
+
+/* ========
+    Module Implementation
+======== */
 
 // AccessibleElement Class & Class Methods
 
@@ -63,12 +78,14 @@ PyDoc_STRVAR(names_docstring, "names()"
 static PyObject * names(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
     CFArrayRef names;
+    printf("Check.\n");
     AXError error = AXUIElementCopyAttributeNames(self->_ref, &names);
-    
+    printf("Check two.\n");
     if (error == kAXErrorSuccess) {
+        printf("Check three.\n");
         result = parseCFTypeRef(names);
     } else {
-        handleAXErrors("(attribute names)", error);
+        handleAXErrors("attribute names", error);
     }
 
     if (names != NULL) CFRelease(names);
@@ -76,9 +93,9 @@ static PyObject * names(AccessibleElement * self, PyObject * args) {
 }
 
 PyDoc_STRVAR(count_docstring, "count(attribute_names)"
-    "\n\nReturns the number of values for the specified attribute name(s) (possibly "
-    "\nzero). If the element does not possess this/these attribute(s), this method will "
-    "\nraise a ValueError."
+    "\n\nReturns the number of values for the specified attribute name(s), possibly zero. "
+    "\nIf the element does not possess this/these attribute(s), this method will raise a "
+    "\nValueError."
     "\n\n:param attribute_names: Either a single name or a series of names, all strings."
     "\n:rvalue: Either a single value's count or a tuple of the values' counts."
     "\n\n A common usage might look like::"
@@ -98,7 +115,6 @@ static PyObject * count(AccessibleElement * self, PyObject * args) {
     }
 
     for (int i = 0; i < attribute_count; i++) {
-        PyObject * attribute = NULL;
         PyObject * name = PyTuple_GetItem(args, (Py_ssize_t) i);
         if (!name) {
             if (attribute_count > 1) Py_DECREF(result);
@@ -119,7 +135,6 @@ static PyObject * count(AccessibleElement * self, PyObject * args) {
             PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
             return NULL;
         }
-        // printf("Requested attribute count for %s.\n", name_string);
 
         // Convert that representation to something Carbon will understand.
         CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
@@ -129,22 +144,19 @@ static PyObject * count(AccessibleElement * self, PyObject * args) {
         AXError error = AXUIElementGetAttributeValueCount(self->_ref, name_strref, &count);
         
         if (error == kAXErrorSuccess) {
-            attribute = Py_BuildValue("i", count);
             if (attribute_count > 1) {
-                PyTuple_SetItem(result, i, attribute);
+                PyTuple_SetItem(result, i, Py_BuildValue("i", count));
             } else {
-                result = attribute;
+                result = Py_BuildValue("i", count);
             }
-        // } else if (error == kAXErrorAttributeUnsupported) { // Most common failure case
-        //     if (attribute_count > 1) Py_DECREF(result);
-        //     PyErr_SetString(PyExc_ValueError, formattedMessage("The %s attribute is not supported by this element.", name_string));
-        //     return NULL;
         } else {
-            // If any of the requests fail, immediately return
+            // If any of the requests fail, release memory and raise an exception
             if (attribute_count > 1) Py_DECREF(result);
+            if (name_strref != NULL) CFRelease(name_strref);
             handleAXErrors(name_string, error);
             return NULL;
         }
+        if (name_strref != NULL) CFRelease(name_strref);
     }
     return result;
 }
@@ -169,18 +181,17 @@ PyDoc_STRVAR(get_docstring, "get(attribute_names)"
 
 static PyObject * get(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
-    PyObject * list = NULL;
     // This allows for retrieving multiple objects, so find how many were
     // requested and loop over them.
     Py_ssize_t attribute_count = PyTuple_Size(args);
     if (attribute_count > 1) {
-        list = PyTuple_New(attribute_count);
+        result = PyTuple_New(attribute_count);
     }
 
     for (int i = 0; i < attribute_count; i++) {
-        PyObject * attribute = NULL;
         PyObject * name = PyTuple_GetItem(args, (Py_ssize_t) i);
         if (!name) {
+            if (attribute_count > 1) Py_DECREF(result);
             return NULL; // PyTuple_GetItem will set an Index error.
         }
         if (PyUnicode_Check(name)) { // Handle Unicode strings
@@ -188,6 +199,7 @@ static PyObject * get(AccessibleElement * self, PyObject * args) {
         }
         if (!PyString_Check(name)) {    
             PyErr_SetString(PyExc_TypeError, "Non-string attribute names are not permitted.");
+            if (attribute_count > 1) Py_DECREF(result);
             return NULL;
         }
          // Get a string representation of the attribute name
@@ -196,7 +208,6 @@ static PyObject * get(AccessibleElement * self, PyObject * args) {
             PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
             return NULL;
         }
-        // printf("Requested attribute: %s\n", name_string);
 
         // Convert that representation to something Carbon will understand.
         CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
@@ -206,26 +217,20 @@ static PyObject * get(AccessibleElement * self, PyObject * args) {
         AXError error = AXUIElementCopyAttributeValue(self->_ref, name_strref, &value);
         
         if (error == kAXErrorSuccess) {
-            attribute = Py_BuildValue("O", parseCFTypeRef(value));
             if (attribute_count > 1) {
-                PyTuple_SetItem(list, i, attribute);
+                PyTuple_SetItem(result, i, parseCFTypeRef(value));
             } else {
-                result = Py_BuildValue("OO", attribute, Py_None);
+                result = parseCFTypeRef(value);
             }
-        } else if (error == kAXErrorAttributeUnsupported) { // Most common failure case
-            PyErr_SetString(PyExc_ValueError, formattedMessage("The %s attribute is not supported by this element.", name_string));
-            return NULL;
         } else {
-            // If any of the requests fail, immediately return (None, error)
-            if (attribute_count > 1) {
-                Py_DECREF(list);
-            }
-            result = Py_BuildValue("OO", Py_None, Py_None);
-            return result;
+            // If any of the requests fail, release memory and raise an exception
+            if (attribute_count > 1) Py_DECREF(result);
+            if (name_strref != NULL) CFRelease(name_strref);
+            if (value != NULL) CFRelease(value);
+            handleAXErrors(name_string, error);
+            return NULL;
         }
-    }
-    if (attribute_count > 1) {
-        result = Py_BuildValue("Oi", list, kAXErrorSuccess);
+        if (name_strref != NULL) CFRelease(name_strref);
     }
     return result;
 }
@@ -266,7 +271,6 @@ static PyObject * set(AccessibleElement * self, PyObject * args) {
         PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
         return NULL;
     }
-    // printf("Trying to set attribute: %s\n", name_string);
 
     // Convert that representation to something Carbon will understand.
     CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
@@ -299,7 +303,6 @@ static PyObject * set(AccessibleElement * self, PyObject * args) {
             PyErr_SetString(PyExc_ValueError, "Setting AXPosition requires a tuple of exactly two floats.");
             return NULL;
         }
-        // printf("New values are %f, %f\n", pair[0], pair[1]);
         CGPoint pos = CGPointMake((CGFloat) pair[0], (CGFloat) pair[1]);
         CFTypeRef position = (CFTypeRef) AXValueCreate(kAXValueCGPointType, (const void *) &pos);
         AXError error = AXUIElementSetAttributeValue(self->_ref, kAXPositionAttribute, position);
@@ -321,7 +324,6 @@ static PyObject * set(AccessibleElement * self, PyObject * args) {
             PyErr_SetString(PyExc_ValueError, "Setting AXSize requires a tuple of exactly two floats.");
             return NULL;
         }
-        // printf("New valus are %f, %f\n", pair[0], pair[1]);
         CGSize s = CGSizeMake((CGFloat) pair[0], (CGFloat) pair[1]);
         CFTypeRef size = (CFTypeRef) AXValueCreate(kAXValueCGSizeType, (const void *) &s);
         AXError error = AXUIElementSetAttributeValue(self->_ref, kAXSizeAttribute, size);
@@ -359,7 +361,6 @@ static PyObject * can_set(AccessibleElement * self, PyObject * args) {
         PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
         return NULL;
     }
-    // printf("Trying to set attribute: %s\n", name_string);
 
     // Convert that representation to something Carbon will understand.
     CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
@@ -368,14 +369,13 @@ static PyObject * can_set(AccessibleElement * self, PyObject * args) {
     Boolean can_set;
     AXError error = AXUIElementIsAttributeSettable(self->_ref, name_strref, &can_set);
 
-    if (error == kAXErrorSuccess && !can_set) {
-        return Py_False;
-    } else if (error == kAXErrorSuccess && can_set) {
-        return Py_True;
-    } else if (error != kAXErrorSuccess) {
+    if (error == kAXErrorSuccess) {
+        result = can_set ? Py_True : Py_False;
+    } else {
         handleAXErrors(name_string, error);
     }
 
+    if (name_strref != NULL) CFRelease(name_strref);
     return result;
 }
 
@@ -488,9 +488,14 @@ init_accessibility(void) {
 
     InvalidUIElementError = PyErr_NewExceptionWithDoc("wm._accessibility.InvalidUIElementError", InvalidUIElementError_docstring, PyExc_ValueError, NULL);
     PyModule_AddObject(m, "InvalidUIElementError", InvalidUIElementError);
+
+    APIDisabledError = PyErr_NewExceptionWithDoc("wm._accessibility.APIDisabledError", APIDisabledError_docstring, PyExc_Exception, NULL);
+    PyModule_AddObject(m, "APIDisabledError", APIDisabledError);
 }
 
-// Internal functions
+/* ========
+    Private Member Implementations
+======== */
 
 static AccessibleElement * elementWithRef(AXUIElementRef * ref) {
     AccessibleElement * self;
@@ -606,6 +611,7 @@ static PyObject * parseCFTypeRef(const CFTypeRef value) {
 }
 
 static void handleAXErrors(char * attribute_name, AXError error) {
+    printf("Error handler called.\n");
     switch(error) {
         case kAXErrorCannotComplete:
             PyErr_SetString(PyExc_Exception, formattedMessage("The request for %s could not be completed (perhaps the application is not responding?).", attribute_name));
@@ -629,6 +635,10 @@ static void handleAXErrors(char * attribute_name, AXError error) {
 
         case kAXErrorNotImplemented:
             PyErr_SetString(PyExc_NotImplementedError, formattedMessage("This element does not implement the Accessibility API for the attribute %s.", attribute_name));
+            break;
+
+        case kAXErrorAPIDisabled:
+            PyErr_SetString(APIDisabledError, formattedMessage("This element does not respond to Accessibility requests -- perhaps Accessibility is not enabled on the system?"));
             break;
 
         default:

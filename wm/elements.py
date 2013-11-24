@@ -2,11 +2,12 @@ import AppKit, objc, logging
 
 import _accessibility as acbl
 
+SYSTEMWIDE_ELEMENT = acbl.create_systemwide_ref()
+
 class AccessibleApplication(object):
 	"""
 	Defines an application available to the Accessibility API.
 	"""
-	_systemwide_element = None
 	
 	def __init__(self, element, bundle):
 		self._element = element
@@ -14,18 +15,14 @@ class AccessibleApplication(object):
 		self._title = None
 		self._windows = []
 
-		if not self._systemwide_element:
-			self._systemwide_element = acbl.create_systemwide_ref()
-
 		# Gets the windows
 		try:
 			num_windows = self._element.count('AXWindows')
 			if num_windows != 0:
-				windowrefs, error = self._element.get('AXWindows')
-				for ref in windowrefs:
+				for ref in self._element.get('AXWindows'):
 					self._windows.append(AccessibleWindow(ref, self))
 		except Exception as e:
-			logging.debug('Error while fetching windows for bundle <%s>: %s', bundle, e.value)
+			logging.debug('Error while fetching windows for bundle <%s>: %s', bundle, e.args[0])
 
 	@property
 	def bundle(self):
@@ -33,23 +30,21 @@ class AccessibleApplication(object):
 	
 	@property
 	def title(self):
-		if self._title: # Cache the title, since it won't change
-			return self._title
-		else:
-			title, error = self._element.get('AXTitle')
-			if error == None:
-				self._title = title
-			else:
-				logging.debug('No title found for bundle %s. Error %d.', self._bundle, error)
-			return self._title
+		if self._title == None: # Cache the title, since it won't change
+			try:
+				self._title = self._element.get('AXTitle')
+			except Exception as e:
+				logging.debug('No title found for bundle %s. Exception: %s.', self._bundle, e.args[0])
+		
+		return self._title
 
 	@property
 	def hidden(self):
-		_hidden, error = self._element.get('AXHidden')
-		if error == None:
+		try:
+			_hidden = self._element.get('AXHidden')
 			return _hidden
-		else:
-			logging.debug('No AXHidden property found for bundle %s. Error %d.', self._bundle, error)
+		except Exception as e:
+			logging.debug('No AXHidden property found for bundle %s. Exception: %s.', self._bundle, e.args[0])
 			return None
 
 	@hidden.setter
@@ -67,11 +62,11 @@ class AccessibleWindow(object):
 
 	@property
 	def position(self):
-		_pos, error = self._element.get('AXPosition')
-		if error == None:
+		try:
+			_pos = self._element.get('AXPosition')
 			return _pos
-		else:
-			logging.debug('No AXPosition property found for window in app %s. Error %d.', self._parent.title, error)
+		except Exception as e:
+			logging.debug('No AXPosition property found for window in app %s. Exception: %s.', self._parent.title, e.args[0])
 			return None
 
 	@position.setter
@@ -80,11 +75,11 @@ class AccessibleWindow(object):
 
 	@property
 	def size(self):
-		_size, error = self._element.get('AXSize')
-		if error == None:
+		try:
+			_size = self._element.get('AXSize')
 			return _size
-		else:
-			logging.debug('No AXSize property found for window in app %s. Error %d.', self._parent.title, error)
+		except Exception as e:
+			logging.debug('No AXSize property found for window in app %s. Exception: %s.', self._parent.title, e.args[0])
 			return None
 
 	@size.setter
@@ -112,11 +107,11 @@ class AccessibleWindow(object):
 
 	@property
 	def minimized(self):
-		_min, error = self._element.get('AXMinimized')
-		if error == None:
+		try:
+			_min = self._element.get('AXMinimized')
 			return _min
-		else:
-			logging.debug('No AXMinimized property found for window in app %s. Error %d.', self._parent.title, error)
+		except Exception as e:
+			logging.debug('No AXMinimized property found for window in app %s. Exception: %s.', self._parent.title, e.args[0])
 			return None
 
 def new_application(pid, bundle):
@@ -126,17 +121,17 @@ def new_application(pid, bundle):
 	"""
 	app = None
 	ref = acbl.create_application_ref(pid)
-	role, error = ref.get(AppKit.NSAccessibilityRoleAttribute)
-	
-	if error == -25211:
+	try:
+		role = ref.get(AppKit.NSAccessibilityRoleAttribute)
+		if role == u'AXApplication':
+			app = AccessibleApplication(ref, bundle)
+			logging.debug('Bundle <%s> is an accessible application.', bundle)
+		else:
+			logging.debug('Bundle <%s> is not an accessible application, role is %s.', bundle, role)
+	except APIDisabledError:
 		logging.debug('Bundle <%s> is not available to the Accessibility API.', bundle)
-	elif error != None:
-		logging.debug('Bundle <%s> role request failed with error %d.', bundle, error)
-	elif role == u'AXApplication':
-		app = AccessibleApplication(ref, bundle)
-		logging.debug('Bundle <%s> is an accessible application.', bundle)
-	elif debug:
-		logging.debug('Bundle <%s> is not an accessible application, role is %s.', bundle, role)
+	except Exception as e:
+		logging.debug('Bundle <%s> role request failed with exception: %s.', bundle, e.args[0])
 
 	return app
 
@@ -166,17 +161,20 @@ def get_accessible_applications(ignored_bundles = []):
 		
 		# Create AXUIElementRef
 		ref = acbl.create_application_ref(application.processIdentifier())
-		role, error = ref.get(AppKit.NSAccessibilityRoleAttribute)
-		
-		# Deal with errors/responses
-		if error == -25211:
+		try:
+			role = ref.get(AppKit.NSAccessibilityRoleAttribute)
+			if role == u'AXApplication':
+				running_apps.append(AccessibleApplication(ref, application.bundleIdentifier()))
+				_accessibile.append(application.bundleIdentifier())
+			else:
+				_unavailable.append(application.bundleIdentifier())
+		# Deal with errors
+		except acbl.APIDisabledError:
 			_unavailable.append(application.bundleIdentifier())
-		elif error != None:
-			logging.debug('Bundle <%s> role request failed with error %d.', application.bundleIdentifier(), error)
-		elif role == u'AXApplication':
-			running_apps.append(AccessibleApplication(ref, application.bundleIdentifier()))
-			_accessibile.append(application.bundleIdentifier())
-		else:
+		except ValueError:
+			_unavailable.append(application.bundleIdentifier())
+		except Exception as e:
+			logging.debug('Bundle <%s> role request failed with exception: %s', application.bundleIdentifier(), e.args[0])
 			_unavailable.append(application.bundleIdentifier())
 	
 	logging.debug('Current accessible application bundles: <%s>.', '>, <'.join(_accessibile))
