@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <Python.h>
+#include <structmember.h>
 
 #include "AXError.h"
 #include "AXUIElement.h"
@@ -32,6 +33,7 @@ char * formattedMessage(char * format, ...) {
 typedef struct {
     PyObject_HEAD
     AXUIElementRef _ref;
+    PyObject * pid;
 } AccessibleElement;
 
 // Module functions
@@ -67,6 +69,7 @@ static void handleAXErrors(char *, AXError);
 // Use CFRelease to release for the AXUIElementRef
 static void AccessibleElement_dealloc(AccessibleElement * self) {
     if (self->_ref != NULL) CFRelease(self->_ref);
+    Py_XDECREF(self->pid);
     self->ob_type->tp_free((PyObject *) self);
 }
 
@@ -112,11 +115,8 @@ PyDoc_STRVAR(names_docstring, "names()"
 static PyObject * names(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
     CFArrayRef names;
-    printf("Check.\n");
     AXError error = AXUIElementCopyAttributeNames(self->_ref, &names);
-    printf("Check two.\n");
     if (error == kAXErrorSuccess) {
-        printf("Check three.\n");
         result = parseCFTypeRef(names);
     } else {
         handleAXErrors("attribute names", error);
@@ -435,6 +435,11 @@ static PyMethodDef AccessibleElement_methods[] = {
     {NULL, NULL}  /* Sentinel */
 };
 
+static PyMemberDef AccessibleElement_members[] = {
+    {"pid", T_OBJECT_EX, offsetof(AccessibleElement, pid), READONLY, "The process ID associated with this element, if it has one."},
+    {NULL, NULL}
+};
+
 static PyTypeObject AccessibleElement_type = {
     PyObject_HEAD_INIT(NULL)
     0,                         /*ob_size*/
@@ -465,6 +470,7 @@ static PyTypeObject AccessibleElement_type = {
     0,                       /* tp_iter */
     0,                       /* tp_iternext */
     AccessibleElement_methods, /* tp_methods */
+    AccessibleElement_members /* tp_members */
 };
 
 // Module functions
@@ -537,7 +543,12 @@ static AccessibleElement * elementWithRef(AXUIElementRef * ref) {
     if (self == NULL)
         return NULL;
     self->_ref = *ref;
-        return self;
+
+    // Sets the pid, which should never change
+    pid_t pid;
+    AXError error = AXUIElementGetPid(*ref, &pid);
+    self->pid = (error == kAXErrorSuccess) ? PyInt_FromLong(pid) : Py_None;
+    return self;
 }
 
 static PyObject * parseCFTypeRef(const CFTypeRef value) {
