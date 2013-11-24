@@ -593,7 +593,6 @@ static PyObject * parseCFTypeRef(const CFTypeRef value) {
         
         // The value is a CFStringRef, so try to decode it to a char *
         CFIndex length = CFStringGetLength(value);
-        // printf("String has length: %ld\n", length);
         if (length == 0) { // Empty string
             result = Py_None;
         } else {
@@ -690,7 +689,6 @@ static PyObject * parseCFTypeRef(const CFTypeRef value) {
 }
 
 static void handleAXErrors(char * attribute_name, AXError error) {
-    printf("Error handler called.\n");
     switch(error) {
         case kAXErrorCannotComplete:
             PyErr_SetString(PyExc_Exception, formattedMessage("The request for %s could not be completed (perhaps the application is not responding?).", attribute_name));

@@ -14,6 +14,7 @@ def _add_hotkey_callback(func):
 
     # Enable the tap
     CGEventTapEnable(tap, True)
+    logging.info('Global hotkeys are now being watched.')
 
 
 class ObserverHelper(NSObject):
@@ -33,7 +34,7 @@ class ObserverHelper(NSObject):
             nc.addObserver_selector_name_object_(self, self.appUnhidden_, 'NSWorkspaceDidUnhideApplicationNotification', None)
             nc.addObserver_selector_name_object_(self, self.spaceChanged_, 'NSWorkspaceActiveSpaceDidChangeNotification', None)
 
-            logging.info('An ObserverHelper is now watchig notifications in the workspace.')
+            logging.info('An ObserverHelper is now watching notifications in the workspace.')
 
         return self
 
