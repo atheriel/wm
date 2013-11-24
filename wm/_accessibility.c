@@ -64,6 +64,40 @@ static void handleAXErrors(char *, AXError);
     Module Implementation
 ======== */
 
+// Use CFRelease to release for the AXUIElementRef
+static void AccessibleElement_dealloc(AccessibleElement * self) {
+    if (self->_ref != NULL) CFRelease(self->_ref);
+    self->ob_type->tp_free((PyObject *) self);
+}
+
+// Uses CFEqual on the underlying AXUIElementRefs for comparison
+static PyObject * AccessibleElement_richcompare(PyObject * self, PyObject * other, int op) {
+    PyObject * result = NULL;
+
+    if (self->ob_type != other->ob_type) {
+        // Need both to be the same type
+        result = Py_NotImplemented;
+    } else {
+        AccessibleElement * s = (AccessibleElement *) self;
+        AccessibleElement * o = (AccessibleElement *) other;
+        int i = CFEqual(s->_ref, o->_ref) ? 1 : 0;
+        switch (op) {
+            case Py_EQ:
+                result = (i > 0) ? Py_True : Py_False;
+                break;
+            case Py_NE:
+                result = (i > 0) ? Py_False : Py_True;
+                break;
+            default:
+                PyErr_SetString(PyExc_TypeError, "AccessibleElement objects can only be compared with == and != operators.");
+                break;
+        }
+    }
+
+    Py_XINCREF(result);
+    return result;
+}
+
 // AccessibleElement Class & Class Methods
 
 PyDoc_STRVAR(names_docstring, "names()"
@@ -407,7 +441,7 @@ static PyTypeObject AccessibleElement_type = {
     "wm._accessibility.AccessibleElement", /*tp_name*/
     sizeof(AccessibleElement), /*tp_basicsize*/
     0,                         /*tp_itemsize*/
-    0,                         /*tp_dealloc*/
+    (destructor) AccessibleElement_dealloc, /*tp_dealloc*/
     0,                         /*tp_print*/
     0,                         /*tp_getattr*/
     0,                         /*tp_setattr*/
@@ -426,7 +460,7 @@ static PyTypeObject AccessibleElement_type = {
     "A basic accessibile element.", /* tp_doc */
     0,                       /* tp_traverse */
     0,                       /* tp_clear */
-    0,                       /* tp_richcompare */
+    (richcmpfunc) &AccessibleElement_richcompare, /* tp_richcompare */
     0,                       /* tp_weaklistoffset */
     0,                       /* tp_iter */
     0,                       /* tp_iternext */
