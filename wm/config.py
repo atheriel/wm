@@ -5,6 +5,7 @@ import os.path
 import logging
 from ConfigParser import RawConfigParser
 
+
 __config_dir__ = 'wm'
 __config_file__ = 'wm.rc'
 __default_dir__ = os.path.join(os.path.dirname(__file__), 'config')
@@ -17,6 +18,7 @@ __mod_masks__ = {
 }
 
 IGNORED_BUNDLES = []
+LAYOUT = None
 MIN_SIZES = dict()
 HOTKEYS = dict()
 
@@ -67,6 +69,7 @@ def read_config(filename = None):
     is ``None``).
     """
     global IGNORED_BUNDLES
+    global LAYOUT
     global MIN_SIZES
     global HOTKEYS
 
@@ -96,3 +99,20 @@ def read_config(filename = None):
 
         HOTKEYS[name] = hotkey
         logging.debug('Hotkey registered for \'%s\': %d, %d', name, hotkey[0], hotkey[1])
+
+    # Load layout class and use the rest of the items in the constructor
+    classname = None
+    layout_dict = dict()
+    for name, value in config.items('Layout'):
+        if name == 'class':
+            classname = value
+        else:
+            layout_dict[name] = ast.literal_eval(value)
+
+    if classname is None:
+        raise Exception('Bad config file. Layout section must have a class.')
+
+    name = classname.rsplit('.', 1)
+    layout_module = __import__(name[0], globals(), locals(), [], -1)
+    layout_class = getattr(layout_module, name[1])
+    LAYOUT = layout_class(**layout_dict)

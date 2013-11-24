@@ -13,6 +13,13 @@ ignored_bundles = [
 [HotKeys]
 reflow = ctrl alt 15
 
+[Layout]
+class = layout.VerticalSplitLayout
+border = 40
+gutter = 40
+ratio = 0.5
+ignore_menu = True
+
 [Minimum Sizes]
 com.apple.ActivityMonitor = (640.0, 462.0)
 com.kapeli.dash = (580.0, 422.0)

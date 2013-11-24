@@ -3,7 +3,6 @@ import logging
 from Quartz import *
 
 import config
-import layout
 import elements
 
 
@@ -86,8 +85,6 @@ class WindowManager(object):
 
         self.update(config_file)
 
-        self._layout = layout.VerticalSplitLayout(border = 40, gutter = 40, ratio = 0.5, ignore_menu = True)
-
     def update(self, config_file = None):
         self._apps = dict()
         self._windows = []
@@ -102,12 +99,14 @@ class WindowManager(object):
 
         logging.info('The window manager is now aware of: %s', ', '.join(self._apps.keys()))
 
+        self._layout = config.LAYOUT
+
     def get_managed_windows(self, screen = NSScreen.mainScreen(), spaceId = None):
         _windows = []
 
         # Don't include those from hidden apps
         for win in self._windows:
-            if not win._parent.hidden and not wim.minimized:
+            if not win._parent.hidden and not win.minimized:
                 _windows.append(win)
 
         return _windows
