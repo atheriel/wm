@@ -432,7 +432,7 @@ static PyMethodDef AccessibleElement_methods[] = {
     {"set", (PyCFunction) set, METH_VARARGS, set_docstring},
     {"can_set", (PyCFunction) can_set, METH_VARARGS, NULL},
     {"is_alive", (PyCFunction) is_alive, METH_NOARGS, is_alive_docstring},
-    {NULL, NULL}  /* Sentinel */
+    {NULL, NULL}
 };
 
 static PyMemberDef AccessibleElement_members[] = {
@@ -503,13 +503,47 @@ static PyObject * create_systemwide_ref(PyObject * self, PyObject * args) {
     return (PyObject *) result;
 }
 
+PyDoc_STRVAR(element_at_position_docstring, "element_at_position(x, y, element = None)"
+    "\n\nGets the window element at the (x, y) position. If ``element`` is specified, "
+    "\nthen this position is relative to that application. Otherwise, the system element "
+    "\nis used instead."
+    "\n\n:param float x: The x coordinate."
+    "\n:param float y: The y coordinate."
+    "\n:param AccessibleElement element: The application element to use as a reference."
+    "\n:rvalue: An AccessibleElement object referring to a window at the given position.");
+
+static PyObject * element_at_position(PyObject * self, PyObject * args, PyObject * kwargs) {
+    PyObject * result = NULL;
+    AccessibleElement * parent = NULL;
+    float x, y;
+
+    static char *kwlist [] = {"x", "y", "element", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ff|O", kwlist, &x, &y, &parent))
+        return NULL;
+    
+    AXUIElementRef ref = (parent != NULL) ? parent->_ref : AXUIElementCreateSystemWide();
+    AXUIElementRef element;
+    AXError error = AXUIElementCopyElementAtPosition (ref, x, y, &element);
+
+    if (error == kAXErrorSuccess) {
+        result = elementWithRef(&element);
+    } else {
+        handleAXErrors("(element at position)", error);
+    }
+
+    if (ref != NULL && parent == NULL) CFRelease(ref);
+    return result;
+}
+
 // Module definition
  
 static PyMethodDef methods[] = {
 	{"is_enabled", (PyCFunction) is_enabled, METH_NOARGS, "is_enabled()\n\nCheck if accessibility has been enabled on the system."},
     {"is_trusted", (PyCFunction) is_trusted, METH_NOARGS, "is_trusted()\n\nCheck if this application is a trusted process."},
-	{"create_application_ref", create_application_ref, METH_VARARGS, "Create an accessibile application with the given PID."},
-	{"create_systemwide_ref", create_systemwide_ref, METH_VARARGS, "Get a system-wide accessible element reference."},
+	{"create_application_ref", create_application_ref, METH_VARARGS, "create_application_ref(pid)\n\nCreate an accessibile application with the given PID."},
+	{"create_systemwide_ref", create_systemwide_ref, METH_NOARGS, "create_systemwide_ref()\n\nGet a system-wide accessible element reference."},
+    {"element_at_position", (PyCFunction) element_at_position, METH_VARARGS|METH_KEYWORDS, element_at_position_docstring},
 	{NULL, NULL, 0, NULL}
 };
  
