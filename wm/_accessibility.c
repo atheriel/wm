@@ -26,54 +26,179 @@ char * formattedMessage(char * format, ...) {
 }
 
 /* ========
-    Module API
+    Module API and Docstrings
 ======== */
 
-// Member classes
+/* Accessible Element class
+======== */
+
+PyDoc_STRVAR(AccessibleElement_docstring,
+"An AccessibleElement object is a wrapper around the Accessibility API's basic \n\
+unit, the AXUIElementRef. It provides access to most of the API's functionality \n\
+in a highly object-oriented fashion (in other words, exactly the opposite of \n\
+how one interacts with the API itself). Its individual methods are extensively \n\
+documented with the details of their use.\n\
+\n\
+The object implements Python's mapping protocol to make accessing attributes \n\
+a more 'pythonic' experience. A typical piece of code to modify the size of a \n\
+window might take the following form::\n\
+\n\
+   if 'AXSize' in window_element and window_element.can_set('AXSize'):\n\
+        window_element.set('AXSize', (100, 100))\n\
+        # or, using the element as a dictionary:\n\
+        window_element['AXSize'] == (100, 100)\n\
+\n\
+Some care has been taken to manage the memory used by the CFTypeRef system, but \n\
+this has not been rigorously tested.");
+
 typedef struct {
     PyObject_HEAD
     AXUIElementRef _ref;
     PyObject * pid;
 } AccessibleElement;
 
-// Module functions
+static void AccessibleElement_dealloc(AccessibleElement *);
+static PyObject * AccessibleElement_richcompare(PyObject *, PyObject *, int);
+static int AccessibleElement_contains(AccessibleElement *, PyObject *);
+static PyObject * AccessibleElement_subscript(AccessibleElement *, PyObject *);
+static int AccessibleElement_ass_subscript(AccessibleElement *, PyObject *, PyObject *);
+
+PyDoc_STRVAR(keys_docstring, "keys()\n\n\
+Retrieves a list of attribute names available for this element.");
+
+static PyObject * AccessibleElement_keys(AccessibleElement *, PyObject *);
+
+PyDoc_STRVAR(can_set_docstring, "can_set(name)\n\n\
+Checks whether the attribute of a given name is modifiable.");
+
+static PyObject * AccessibleElement_can_set(AccessibleElement *, PyObject *);
+
+PyDoc_STRVAR(count_docstring, "count(*names)\n\n\
+Counts the number of values for the specified attribute name(s), which may be \n\
+zero. If the element does not possess this/these attribute(s), this method will \n\
+raise a KeyError.\n\
+\n\
+:param names: Either a single name or a series of names, all strings.\n\
+:rvalue: Either a single value's count or a tuple of the values' counts.\n\
+\n\
+A common usage might look like the following::\n\
+\n\
+    try:\n\
+        role_counts = element.count('AXRole', 'AXRoleDescription')\n\
+        print 'Count for AXRole: %d and AXRoleDescription: %d' % role_counts\n\
+    except KeyError:\n\
+        print 'I guess those aren't available...'");
+
+static PyObject * AccessibleElement_count(AccessibleElement *, PyObject *);
+
+PyDoc_STRVAR(get_docstring, "get(*names)\n\n\
+Returns a copy of the values for the specified attribute name(s), which may be \n\
+None. If the element does not possess this/these attribute(s), this method will \n\
+raise a KeyError.\n\
+\n\
+This is the underlying method called when using an AccessibleElement as a dict.\n\
+\n\
+:param names: Either a single name or a series of names, all strings.\n\
+:rvalue: Either a single value or a tuple of the values.\n\
+\n\
+A common usage might look like the following::\n\
+\n\
+    try:\n\
+        role = element.get('AXRole')\n\
+        print role\n\
+    except KeyError:\n\
+        print 'Seems this element is not available.'\n\
+\n\
+This is almost equivalent to using the element like a dictionary::\n\
+\n\
+    if 'AXRole' in element:\n\
+        print element['AXRole']\n\
+    else:\n\
+        print 'Seems this element is not available.'");
+
+static PyObject * AccessibleElement_get(AccessibleElement *, PyObject *);
+
+PyDoc_STRVAR(is_alive_docstring, "is_alive()\n\n\
+Returns True if the AXUIElementRef is still valid.");
+
+static PyObject * AccessibleElement_is_alive(AccessibleElement *, PyObject *);
+
+PyDoc_STRVAR(set_docstring, "set(name, value)\n\n\
+Sets the value of the attribute with the given name (if possible). If the \n\
+element does not possess this attribute, this method will raise a KeyError. If \n\
+it is not modifiable, this method will raise a ValueError.\n\
+\n\
+This is the underlying method called when using an AccessibleElement as a dict.\n\
+\n\
+:param str name: The name of the attribute to set.\n\
+:param value: The new value of the attribute.\n\
+\n\
+\nEach attribute may set a different kind of value. For example::\n\
+\n\
+    if 'AXSize' in window_element and window_element.can_set('AXSize'):\n\
+        window_element.set('AXSize', (100, 100))\n\
+        # or, using the element as a dictionary:\n\
+        window_element['AXSize'] == (100, 100)");
+
+static PyObject * AccessibleElement_set(AccessibleElement *, PyObject *);
+
+/* Module functions
+======== */
+
 static PyObject * is_enabled(PyObject *);
 static PyObject * create_application_ref(PyObject *, PyObject *);
 static PyObject * create_systemwide_ref(PyObject *, PyObject *);
 
-// Exceptions
+PyDoc_STRVAR(element_at_position_docstring, "element_at_position(x, y, element = None)\n\n\
+Gets the window element at the (x, y) position. If ``element`` is specified, \n\
+then this position is relative to that application. Otherwise, the system \n\
+element is used instead.\n\
+\n\
+:param float x: The x coordinate.\n\
+:param float y: The y coordinate.\n\
+:param AccessibleElement element: The application element to use as a reference.\n\
+:rvalue: An AccessibleElement object referring to a window at the given position.");
+
+static PyObject * element_at_position(PyObject *, PyObject *, PyObject *);
+
+/* Module exceptions
+======== */
+
 PyDoc_STRVAR(InvalidUIElementError_docstring, 
-    "Raised when a reference to some AccessibleElement is no longer valid, usually "
-    "\nbecause the process is dead.");
+"Raised when a reference to some AccessibleElement is no longer valid, usually \n\
+because the process is dead.");
+
 static PyObject * InvalidUIElementError;
 
 PyDoc_STRVAR(APIDisabledError_docstring, 
-    "Raised when a the Accessibility API is disabled for some reference. Usually this is "
-    "\nbecause the user needs to enable Accessibility, although some Apple applications "
-    "\nare known to respond with this error regardless.");
+"Raised when a the Accessibility API is disabled for some reference. Usually \n\
+this is because the user needs to enable Accessibility, although some Apple \n\
+applications are known to respond with this error regardless.");
+
 static PyObject * APIDisabledError;
 
 /* ========
-    Private members
+    Internal API
 ======== */
 
 static PyObject * parseCFTypeRef(const CFTypeRef);
 static AccessibleElement * elementWithRef(AXUIElementRef *);
 static void handleAXErrors(char *, AXError);
 
-
 /* ========
     Module Implementation
 ======== */
 
-// Use CFRelease to release for the AXUIElementRef
+/* AccessibleElement class
+======== */
+
 static void AccessibleElement_dealloc(AccessibleElement * self) {
+    // Use CFRelease to release for the AXUIElementRef
     if (self->_ref != NULL) CFRelease(self->_ref);
     Py_XDECREF(self->pid);
     self->ob_type->tp_free((PyObject *) self);
 }
 
-// Uses CFEqual on the underlying AXUIElementRefs for comparison
 static PyObject * AccessibleElement_richcompare(PyObject * self, PyObject * other, int op) {
     PyObject * result = NULL;
 
@@ -83,6 +208,7 @@ static PyObject * AccessibleElement_richcompare(PyObject * self, PyObject * othe
     } else {
         AccessibleElement * s = (AccessibleElement *) self;
         AccessibleElement * o = (AccessibleElement *) other;
+        // Uses CFEqual on the underlying AXUIElementRefs for comparison
         int i = CFEqual(s->_ref, o->_ref) ? 1 : 0;
         switch (op) {
             case Py_EQ:
@@ -101,18 +227,63 @@ static PyObject * AccessibleElement_richcompare(PyObject * self, PyObject * othe
     return result;
 }
 
-// AccessibleElement Class & Class Methods
+/* Sequence Protocol
+======== */
 
-PyDoc_STRVAR(names_docstring, "names()"
-    "\n\nRetrieves a list of attribute names available to this element and the "
-    "\nerror (possibly None)."
-    "\n\n:rval: A tuple of the names and the error."
-    "\n\nExample usage::"
-    "\n\n\tattributes, error = element.names()"
-    "\n\tif error == None:"
-    "\n\t\tfor name in attributes: print name");
+static int AccessibleElement_contains(AccessibleElement * self, PyObject * arg) {
+    if (PyUnicode_Check(arg)) { // Handle Unicode strings
+        arg = PyUnicode_AsUTF8String(arg);
+    }
+    // The argument should be a string
+    if (!arg || !PyString_Check(arg)) {
+        return 0;
+    }
 
-static PyObject * names(AccessibleElement * self, PyObject * args) {
+     // Get a C string representation of the attribute name
+    const char * name_string = PyString_AsString(arg);
+    if (!name_string) {
+        return 0;
+    }
+
+    // Convert C string to CFString and check if the attribute's value can be copied
+    CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
+    CFTypeRef value = NULL;
+    AXError error = AXUIElementCopyAttributeValue(self->_ref, name_strref, &value);
+    if (name_strref != NULL) CFRelease(name_strref);
+    if (value != NULL) CFRelease(value);
+    
+    return (error == kAXErrorSuccess) ? 1 : 0;
+}
+
+static PySequenceMethods AccessibleElement_as_sequence = {
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    (objobjproc) AccessibleElement_contains,
+};
+
+/* Mapping Protocol
+======== */
+
+static PyObject * AccessibleElement_subscript(AccessibleElement * self, PyObject * key) {
+    return AccessibleElement_get(self, Py_BuildValue("(O)", key));
+}
+
+static int AccessibleElement_ass_subscript(AccessibleElement * self, PyObject * key, PyObject * value) {
+    return (AccessibleElement_set(self, Py_BuildValue("OO", key, value)) != NULL) ? 0 : -1;
+}
+
+static PyMappingMethods AccessibleElement_as_mapping = {
+    0,
+    (binaryfunc) AccessibleElement_subscript,
+    (objobjargproc) AccessibleElement_ass_subscript,
+};
+
+static PyObject * AccessibleElement_keys(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
     CFArrayRef names;
     AXError error = AXUIElementCopyAttributeNames(self->_ref, &names);
@@ -126,20 +297,53 @@ static PyObject * names(AccessibleElement * self, PyObject * args) {
     return result;
 }
 
-PyDoc_STRVAR(count_docstring, "count(attribute_names)"
-    "\n\nReturns the number of values for the specified attribute name(s), possibly zero. "
-    "\nIf the element does not possess this/these attribute(s), this method will raise a "
-    "\nValueError."
-    "\n\n:param attribute_names: Either a single name or a series of names, all strings."
-    "\n:rvalue: Either a single value's count or a tuple of the values' counts."
-    "\n\n A common usage might look like::"
-    "\n\n\ttry:"
-    "\n\t\trole_count = element.count('AXRole')"
-    "\n\t\tprint 'Count for AXRole: %d and AXRoleDescription: %d' % role_count"
-    "\n\texcept ValueError:"
-    "\n\t\tprint 'I guess those aren't available...'");
+/* Members
+======== */
 
-static PyObject * count(AccessibleElement * self, PyObject * args) {
+static PyObject * AccessibleElement_can_set(AccessibleElement * self, PyObject * args) {
+    PyObject * result = NULL;
+    Py_ssize_t attribute_count = PyTuple_Size(args);
+    if (attribute_count > 1) {
+        PyErr_SetString(PyExc_ValueError, "Too many arguments.");
+        return NULL;
+    }
+    // The first argument should be a string
+    PyObject * name = PyTuple_GetItem(args, (Py_ssize_t) 0);
+    if (!name) {
+        return NULL; // PyTuple_GetItem will set an Index error.
+    }
+    if (PyUnicode_Check(name)) { // Handle Unicode strings
+        name = PyUnicode_AsUTF8String(name);
+    }
+    if (!PyString_Check(name)) {    
+        PyErr_SetString(PyExc_TypeError, "Non-string attribute names are not permitted.");
+        return NULL;
+    }
+     // Get a string representation of the attribute name
+    const char * name_string = PyString_AsString(name);
+    if (!name_string) {
+        PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
+        return NULL;
+    }
+
+    // Convert that representation to something Carbon will understand.
+    CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
+
+    // Check to see if the attribute can be set at all
+    Boolean can_set;
+    AXError error = AXUIElementIsAttributeSettable(self->_ref, name_strref, &can_set);
+
+    if (error == kAXErrorSuccess) {
+        result = can_set ? Py_True : Py_False;
+    } else {
+        handleAXErrors(name_string, error);
+    }
+
+    if (name_strref != NULL) CFRelease(name_strref);
+    return result;
+}
+
+static PyObject * AccessibleElement_count(AccessibleElement * self, PyObject * args) {
     PyObject * result = Py_None;
     // This allows for retrieving multiple objects, so find how many were
     // requested and loop over them.
@@ -195,25 +399,7 @@ static PyObject * count(AccessibleElement * self, PyObject * args) {
     return result;
 }
 
-PyDoc_STRVAR(get_docstring, "get(attribute_names)"
-    "\n\nReturns a copy of the values for the specified attribute name(s) and the "
-    "\nerror (possibly None). If the element does not possess this attribute, this "
-    "\nmethod will raise a ValueError."
-    "\n\n:param attribute_names: Either a single name or a series of names, all strings."
-    "\n:rval: A tuple of the values and the error."
-    "\n\n A common usage might look like::"
-    "\n\n\trole, error = element.get('AXRole')"
-    "\n\tif error == None: print role"
-    "\n\nUsing more than one attribute name::"
-    "\n\n\tvalue, error = element.get('AXRole', 'AXRoleDescription')"
-    "\n\tif error == None:"
-    "\n\t\tprint value[0], value[1]"
-    "\n\telse:"
-    "\n\t\tprint error"
-    "\n\nThe errors themselves are numbers whose exact meaning varies; see the "
-    "\nAccessibility API documentation for details.");
-
-static PyObject * get(AccessibleElement * self, PyObject * args) {
+static PyObject * AccessibleElement_get(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
     // This allows for retrieving multiple objects, so find how many were
     // requested and loop over them.
@@ -269,17 +455,16 @@ static PyObject * get(AccessibleElement * self, PyObject * args) {
     return result;
 }
 
-PyDoc_STRVAR(set_docstring, "set(attribute_name, value)"
-    "\n\nSets the value of the specified attribute (if possible). If the element "
-    "\ndoes not possess this attribute or the attribute is not modifiable, this "
-    "\nmethod will raise a ValueError."
-    "\n\n:param str attribute_name: The name of the attribute to set."
-    "\n:param value: The new value of the attribute."
-    "\n:rval: The error, or None if no error occurs."
-    "\n\nThe errors themselves are numbers whose exact meaning varies; see the "
-    "\nAccessibility API documentation for details.");
+static PyObject * AccessibleElement_is_alive(AccessibleElement * self, PyObject * args) {
+    // Just check to see if the element responds to a basic attribute request
+    CFTypeRef value = NULL;
+    AXError error = AXUIElementCopyAttributeValue(self->_ref, kAXRoleAttribute, &value);
+    if (value != NULL) CFRelease(value);
+    
+    return (error == kAXErrorInvalidUIElement) ? Py_False : Py_True;
+}
 
-static PyObject * set(AccessibleElement * self, PyObject * args) {
+static PyObject * AccessibleElement_set(AccessibleElement * self, PyObject * args) {
     PyObject * result = NULL;
     // There should be at least two arguments
     Py_ssize_t attribute_count = PyTuple_Size(args);
@@ -370,68 +555,13 @@ static PyObject * set(AccessibleElement * self, PyObject * args) {
     return result;
 }
 
-static PyObject * can_set(AccessibleElement * self, PyObject * args) {
-    PyObject * result = NULL;
-    Py_ssize_t attribute_count = PyTuple_Size(args);
-    if (attribute_count > 1) {
-        PyErr_SetString(PyExc_ValueError, "Too many arguments.");
-        return NULL;
-    }
-    // The first argument should be a string
-    PyObject * name = PyTuple_GetItem(args, (Py_ssize_t) 0);
-    if (!name) {
-        return NULL; // PyTuple_GetItem will set an Index error.
-    }
-    if (PyUnicode_Check(name)) { // Handle Unicode strings
-        name = PyUnicode_AsUTF8String(name);
-    }
-    if (!PyString_Check(name)) {    
-        PyErr_SetString(PyExc_TypeError, "Non-string attribute names are not permitted.");
-        return NULL;
-    }
-     // Get a string representation of the attribute name
-    const char * name_string = PyString_AsString(name);
-    if (!name_string) {
-        PyErr_SetString(PyExc_TypeError, "An unknown error occured while converting string arguments to char *.");
-        return NULL;
-    }
-
-    // Convert that representation to something Carbon will understand.
-    CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
-
-    // Check to see if the attribute can be set at all
-    Boolean can_set;
-    AXError error = AXUIElementIsAttributeSettable(self->_ref, name_strref, &can_set);
-
-    if (error == kAXErrorSuccess) {
-        result = can_set ? Py_True : Py_False;
-    } else {
-        handleAXErrors(name_string, error);
-    }
-
-    if (name_strref != NULL) CFRelease(name_strref);
-    return result;
-}
-
-PyDoc_STRVAR(is_alive_docstring, "is_alive()"
-    "\n\nReturns True if the AXUIElementRef is still valid.");
-
-static PyObject * is_alive(AccessibleElement * self, PyObject * args) {
-    // Just check to see if the element responds to a basic attribute request
-    CFTypeRef value = NULL;
-    AXError error = AXUIElementCopyAttributeValue(self->_ref, kAXRoleAttribute, &value);
-    if (value != NULL) CFRelease(value);
-    
-    return (error == kAXErrorInvalidUIElement) ? Py_False : Py_True;
-}
-
 static PyMethodDef AccessibleElement_methods[] = {
-    {"names", (PyCFunction) names, METH_NOARGS, names_docstring},
-    {"get", (PyCFunction) get, METH_VARARGS, get_docstring},
-    {"count", (PyCFunction) count, METH_VARARGS, count_docstring},
-    {"set", (PyCFunction) set, METH_VARARGS, set_docstring},
-    {"can_set", (PyCFunction) can_set, METH_VARARGS, NULL},
-    {"is_alive", (PyCFunction) is_alive, METH_NOARGS, is_alive_docstring},
+    {"keys", (PyCFunction) AccessibleElement_keys, METH_NOARGS, keys_docstring},
+    {"count", (PyCFunction) AccessibleElement_count, METH_VARARGS, count_docstring},
+    {"get", (PyCFunction) AccessibleElement_get, METH_VARARGS, get_docstring},
+    {"set", (PyCFunction) AccessibleElement_set, METH_VARARGS, set_docstring},
+    {"can_set", (PyCFunction) AccessibleElement_can_set, METH_VARARGS, NULL},
+    {"is_alive", (PyCFunction) AccessibleElement_is_alive, METH_NOARGS, is_alive_docstring},
     {NULL, NULL}
 };
 
@@ -453,8 +583,8 @@ static PyTypeObject AccessibleElement_type = {
     0,                         /*tp_compare*/
     0,                         /*tp_repr*/
     0,                         /*tp_as_number*/
-    0,                         /*tp_as_sequence*/
-    0,                         /*tp_as_mapping*/
+    &AccessibleElement_as_sequence, /*tp_as_sequence*/
+    &AccessibleElement_as_mapping, /*tp_as_mapping*/
     0,                         /*tp_hash */
     0,                         /*tp_call*/
     0,                         /*tp_str*/
@@ -462,7 +592,7 @@ static PyTypeObject AccessibleElement_type = {
     0,                         /*tp_setattro*/
     0,                         /*tp_as_buffer*/
     Py_TPFLAGS_DEFAULT,        /*tp_flags*/
-    "A basic accessibile element.", /* tp_doc */
+    AccessibleElement_docstring, /* tp_doc */
     0,                       /* tp_traverse */
     0,                       /* tp_clear */
     (richcmpfunc) &AccessibleElement_richcompare, /* tp_richcompare */
@@ -473,7 +603,8 @@ static PyTypeObject AccessibleElement_type = {
     AccessibleElement_members /* tp_members */
 };
 
-// Module functions
+/* Module functions implementation
+======== */
 
 static PyObject * is_enabled(PyObject * self) {
 	return AXAPIEnabled() ? Py_True : Py_False;
@@ -503,15 +634,6 @@ static PyObject * create_systemwide_ref(PyObject * self, PyObject * args) {
     return (PyObject *) result;
 }
 
-PyDoc_STRVAR(element_at_position_docstring, "element_at_position(x, y, element = None)"
-    "\n\nGets the window element at the (x, y) position. If ``element`` is specified, "
-    "\nthen this position is relative to that application. Otherwise, the system element "
-    "\nis used instead."
-    "\n\n:param float x: The x coordinate."
-    "\n:param float y: The y coordinate."
-    "\n:param AccessibleElement element: The application element to use as a reference."
-    "\n:rvalue: An AccessibleElement object referring to a window at the given position.");
-
 static PyObject * element_at_position(PyObject * self, PyObject * args, PyObject * kwargs) {
     PyObject * result = NULL;
     AccessibleElement * parent = NULL;
@@ -536,7 +658,8 @@ static PyObject * element_at_position(PyObject * self, PyObject * args, PyObject
     return result;
 }
 
-// Module definition
+/* Module definition
+======== */
  
 static PyMethodDef methods[] = {
 	{"is_enabled", (PyCFunction) is_enabled, METH_NOARGS, "is_enabled()\n\nCheck if accessibility has been enabled on the system."},
@@ -695,7 +818,7 @@ static void handleAXErrors(char * attribute_name, AXError error) {
             break;
 
         case kAXErrorAttributeUnsupported:
-            PyErr_SetString(PyExc_ValueError, formattedMessage("This element does not possess the attribute %s.", attribute_name));
+            PyErr_SetString(PyExc_KeyError, formattedMessage("This element does not possess the attribute %s.", attribute_name));
             break;
 
         case kAXErrorIllegalArgument:
