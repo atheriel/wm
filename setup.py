@@ -22,6 +22,16 @@ setup(
     url = 'https://github.com/atheriel/wm',
     license = wm.__license__,
     platforms = ['MacOS X'],
+    classifiers = [
+        'Development Status :: 3 - Alpha',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Environment :: Console',
+        'Environment :: MacOS X :: Cocoa',
+        'Operating System :: MacOS :: MacOS X',
+        'Natural Language :: English',
+        'Topic :: Desktop Environment :: Window Managers',
+    ],
 
     packages = ['wm'],
     py_modules = ['wm.config', 'wm.elements', 'wm.errors', 'wm.manager', 'wm.utils'],
