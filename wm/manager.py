@@ -3,6 +3,7 @@ import logging
 from Quartz import *
 
 import config
+import daemon
 import elements
 
 
@@ -147,3 +148,37 @@ class WindowManager(object):
             logging.debug('Added window for application %s.', window._parent.title)
         else:
             logging.debug('Window for application %s is not resizable. Ignoring it.', window._parent.title)
+
+
+class WindowManagerDaemon(daemon.Daemon):
+    def run(self):
+        # New window manager & notification observer
+        WM = WindowManager()
+        observer = ObserverHelper.new()
+        observer.window_manager = WM
+
+        WM.reflow()
+
+        # Allows calling arbitrary methods of WindowManager with hotkeys
+        def hotkey_handler(proxy, etype, event, refcon):
+            keyEvent = NSEvent.eventWithCGEvent_(event)
+            flags = keyEvent.modifierFlags()
+
+            if flags != 0:  # any key event we want deals with mod keys
+                code = keyEvent.keyCode()
+
+                # Cycle through registered hotkeys
+                for name, value in config.HOTKEYS.items():
+                    if (value[0] & flags) and value[1] == code:
+                        # call the name of the hotkey as a function
+                        getattr(WM, name)()
+                        logging.debug('Called method \'%s\' in response to hotkey.', name)
+                        continue
+
+        _add_hotkey_callback(hotkey_handler)
+
+        # Run app loop
+        try:
+            CFRunLoopRun()
+        except KeyboardInterrupt:
+            logging.info('Stopping window manager.')
