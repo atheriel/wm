@@ -7,6 +7,31 @@ except ImportError:
     print 'wm has not been installed properly.'
     exit(1)
 
+__doc__ = """wm: %(desc)s
+
+Usage:
+  wm [-V N --config FILE]
+  wm (start | stop) [-V N --config FILE]
+  wm copy-config
+  wm toggle-shadows
+  wm -h | --help | --version
+
+Commands:
+  start, stop         start or stop the window manager as a daemon
+  copy-config         copy the default configuration files to ~/.config/wm/
+                      and exit
+  toggle-shadows      toggle OS X shadows on or off and exit
+
+Options:
+  -V, --log-level N   the level of info logged to the console, which can be
+                      one of INFO, DEBUG, or WARNING [default: INFO]
+      --config FILE   load the configuration in FILE
+  -v, --version       show program's version number and exit
+  -h, --help          show this help message and exit
+
+Licensed under the %(license)s.
+""" % {'desc': wm.__doc__, 'license': wm.__license__}
+
 if not wm.accessibility_check():
     print 'Accessibility must be enabled on this system before this program can run:'
     print '    System Preferences -> Accessibility -> Enable access for assistive devices.'
@@ -29,94 +54,48 @@ def copy_config():
 
 def main():
     import wm
-    from argparse import ArgumentParser
-    from wm.utils import WellSpacedHelpFormatter
+    from docopt import docopt
 
-    parser = ArgumentParser(description = wm.__doc__,
-        add_help = False,
-        usage = '%s [options]' % 'wm',
-        formatter_class = lambda prog: WellSpacedHelpFormatter(prog, max_help_position = 30),
-        epilog = "Licensed under the %s." % 'ISC')
+    args = docopt(__doc__, version = 'wm version: %s' % wm.__version__)
 
-    options = parser.add_argument_group('Options')
-
-    options.add_argument('--config', metavar = 'FILE', type = file, nargs = 1,
-        help = 'load the configuration in FILE')
-    options.add_argument('-V', '--log-level', metavar='N', default = 'INFO', choices = ['DEBUG', 'INFO', 'WARNING'], nargs = 1, type = str,
-        help = 'the level of info logged to the console, which can be one of INFO, DEBUG, or WARNING (default: %(default)s)')
-    options.add_argument('-q', '--quiet', action = 'store_true', help = 'suppress output')
-
-    other = parser.add_argument_group('Other')
-
-    other.add_argument('--copy-config', action = 'store_true',
-        help = 'copy the default configuration files to ~/.config/wm/ and exit')
-    other.add_argument('--shadows', action = 'store_true',
-        help = 'toggle OS X shadows on or off and exit')
-    other.add_argument('-v', '--version', action = 'version',
-        version = '%s version: %s' % ('wm', wm.__version__))
-    other.add_argument('-h', '--help', action = 'help',
-        help = 'show this help message and exit')
-
-    args = parser.parse_args()
-
-    if args.shadows:
+    if args['toggle-shadows']:
         toggle_shadows()
         exit(0)
 
-    if args.copy_config:
+    if args['copy-config']:
         copy_config()
         exit(0)
 
-    if isinstance(args.log_level, list):  # silly argparse...
-        args.log_level = args.log_level[0]
-
     import logging
+    import wm.manager
 
     logging.basicConfig(
         filename = "/tmp/wm.log",
         filemode = "w",
-        level = getattr(logging, args.log_level),
+        level = getattr(logging, args['--log-level'].upper()),
         format = '[%(asctime)s][%(levelname)s] %(message)s',
         datefmt = '%y-%m-%d %H:%M:%S')
 
-    console = logging.StreamHandler()
-    console.setFormatter(logging.Formatter(
-        fmt="[%(asctime)s][%(levelname)s] %(message)s",
-        datefmt="%H:%M:%S"))
-    logging.getLogger().addHandler(console)
-    console.setLevel(getattr(logging, args.log_level.upper()))
+    daemon = wm.manager.WindowManagerDaemon('/tmp/wm-daemon.pid')
 
-    import wm.config
-    import wm.manager
-    from Quartz import CFRunLoopRun, NSEvent
+    if args['start']:
+        logging.info('Starting daemon...')
+        daemon.start()
 
-    # New window manager & notification observer
-    WM = wm.manager.WindowManager()
-    observer = wm.manager.ObserverHelper.new()
-    observer.window_manager = WM
+    elif args['stop']:
+        logging.info('Stopping daemon...')
+        daemon.stop()
 
-    WM.reflow()
+    else:
+        # Logs to console as well
+        console = logging.StreamHandler()
+        console.setFormatter(logging.Formatter(
+            fmt="[%(asctime)s][%(levelname)s] %(message)s",
+            datefmt="%H:%M:%S"))
+        logging.getLogger().addHandler(console)
+        console.setLevel(getattr(logging, args['--log-level'].upper()))
 
-    # Allows calling arbitrary methods of WindowManager with hotkeys
-    def hotkey_handler(proxy, type, event, refcon):
-        keyEvent = NSEvent.eventWithCGEvent_(event)
-        flags = keyEvent.modifierFlags()
-
-        if flags != 0:  # any key event we want deals with mod keys
-            code = keyEvent.keyCode()
-
-            # Cycle through registered hotkeys
-            for name, value in wm.config.HOTKEYS.items():
-                if (value[0] & flags) and value[1] == code:
-                    # call the name of the hotkey as a function
-                    getattr(WM, name)()
-                    logging.debug('Called method \'%s\' in response to hotkey.', name)
-                    continue
-
-    wm.manager._add_hotkey_callback(hotkey_handler)
-
-    # Run app loop
-    CFRunLoopRun()
+        daemon.run()
 
 if __name__ == "__main__":
     main()
