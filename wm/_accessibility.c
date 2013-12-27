@@ -145,7 +145,12 @@ static PyObject * AccessibleElement_set(AccessibleElement *, PyObject *);
 /* Module functions
 ======== */
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_9
+static PyObject * is_enabled(PyObject *, PyObject *, PyObject *);
+#else
 static PyObject * is_enabled(PyObject *);
+#endif
+
 static PyObject * create_application_ref(PyObject *, PyObject *);
 static PyObject * create_systemwide_ref(PyObject *, PyObject *);
 
@@ -606,8 +611,29 @@ static PyTypeObject AccessibleElement_type = {
 /* Module functions implementation
 ======== */
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_9
+
+// Use the prompt system for Mavericks & later
+static PyObject * is_enabled(PyObject * self, PyObject * args, PyObject * kwargs) {  
+    static char *kwlist [] = {"prompt", NULL};
+    int prompt = 1;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|i", kwlist, &prompt))
+        return NULL;
+
+    if (prompt == 1) {
+        const void * keys[] = { kAXTrustedCheckOptionPrompt };
+        const void * values[] = { kCFBooleanTrue };
+        return AXIsProcessTrustedWithOptions(CFDictionaryCreate(NULL, keys, values, 1, NULL, NULL)) ? Py_True : Py_False;
+    } else {
+        return AXIsProcessTrustedWithOptions(NULL) ? Py_True : Py_False;
+    }
+#else
+
+// Use the old system otherwise
 static PyObject * is_enabled(PyObject * self) {
-	return AXAPIEnabled() ? Py_True : Py_False;
+    return AXAPIEnabled() ? Py_True : Py_False;
+#endif
 }
 
 static PyObject * is_trusted(PyObject * self) {
@@ -662,7 +688,11 @@ static PyObject * element_at_position(PyObject * self, PyObject * args, PyObject
 ======== */
  
 static PyMethodDef methods[] = {
-	{"is_enabled", (PyCFunction) is_enabled, METH_NOARGS, "is_enabled()\n\nCheck if accessibility has been enabled on the system."},
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_9
+	{"is_enabled", (PyCFunction) is_enabled, METH_VARARGS|METH_KEYWORDS, "is_enabled(prompt = False)\n\nCheck if accessibility has been enabled on the system."},
+#else
+    {"is_enabled", (PyCFunction) is_enabled, METH_NOARGS, "is_enabled()\n\nCheck if accessibility has been enabled on the system."},
+#endif
     {"is_trusted", (PyCFunction) is_trusted, METH_NOARGS, "is_trusted()\n\nCheck if this application is a trusted process."},
 	{"create_application_ref", create_application_ref, METH_VARARGS, "create_application_ref(pid)\n\nCreate an accessibile application with the given PID."},
 	{"create_systemwide_ref", create_systemwide_ref, METH_NOARGS, "create_systemwide_ref()\n\nGet a system-wide accessible element reference."},

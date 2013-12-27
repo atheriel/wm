@@ -4,7 +4,9 @@ import wm
 
 accessibility = Extension('wm._accessibility',
     sources = ['wm/_accessibility.c'],
-    include_dirs = ['/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/Headers'],
+    include_dirs = ['/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Headers'],  # noqa
+    # prior to mavericks:
+    # include_dirs = ['/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/Headers'],
     # Uncomment the next line to include debug symbols while compiling
     # extra_compile_args = ['-g'],
     extra_link_args = ['-framework', 'ApplicationServices', '-v']
