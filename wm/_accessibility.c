@@ -142,6 +142,14 @@ This is the underlying method called when using an AccessibleElement as a dict.\
 
 static PyObject * AccessibleElement_set(AccessibleElement *, PyObject *);
 
+PyDoc_STRVAR(set_timeout_docstring, "set_timeout(timeout)\n\n\
+Sets the timeout for requests to the Accessibility API for this element. To \n\
+change the value used for all elements, call this method on the system-wide \n\
+element. The default value can be restored by passing the DEFAULT_TIMEOUT \n\
+value.");
+
+static PyObject * AccessibleElement_set_timeout(AccessibleElement *, PyObject *);
+
 /* Module functions
 ======== */
 
@@ -560,11 +568,28 @@ static PyObject * AccessibleElement_set(AccessibleElement * self, PyObject * arg
     return result;
 }
 
+static PyObject * AccessibleElement_set_timeout(AccessibleElement * self, PyObject * args) {
+    float timeout;
+
+    if (!PyArg_ParseTuple(args, "f", &timeout))
+        return NULL;
+
+    AXError error = AXUIElementSetMessagingTimeout(self->_ref, timeout);
+    
+    if (error != kAXErrorSuccess) {
+        handleAXErrors("timeout", error);
+        return NULL;
+    } else {
+        Py_RETURN_NONE;
+    }
+}
+
 static PyMethodDef AccessibleElement_methods[] = {
     {"keys", (PyCFunction) AccessibleElement_keys, METH_NOARGS, keys_docstring},
     {"count", (PyCFunction) AccessibleElement_count, METH_VARARGS, count_docstring},
     {"get", (PyCFunction) AccessibleElement_get, METH_VARARGS, get_docstring},
     {"set", (PyCFunction) AccessibleElement_set, METH_VARARGS, set_docstring},
+    {"set_timeout", (PyCFunction) AccessibleElement_set_timeout, METH_VARARGS, set_timeout_docstring},
     {"can_set", (PyCFunction) AccessibleElement_can_set, METH_VARARGS, NULL},
     {"is_alive", (PyCFunction) AccessibleElement_is_alive, METH_NOARGS, is_alive_docstring},
     {NULL, NULL}
@@ -712,6 +737,7 @@ init_accessibility(void) {
 
     Py_INCREF(&AccessibleElement_type);
     PyModule_AddObject(m, "AccessibleElement", (PyObject *) &AccessibleElement_type);
+    PyModule_AddObject(m, "DEFAULT_TIMEOUT", PyFloat_FromDouble(0.0));
 
     InvalidUIElementError = PyErr_NewExceptionWithDoc("wm._accessibility.InvalidUIElementError", InvalidUIElementError_docstring, PyExc_ValueError, NULL);
     PyModule_AddObject(m, "InvalidUIElementError", InvalidUIElementError);
