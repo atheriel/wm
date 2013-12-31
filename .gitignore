@@ -1,6 +1,7 @@
 build/
 config/
 test/
+docs/build
 
 *.so
 *.egg-info
