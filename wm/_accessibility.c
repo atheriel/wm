@@ -34,22 +34,34 @@ char * formattedMessage(char * format, ...) {
 
 PyDoc_STRVAR(AccessibleElement_docstring,
 "An AccessibleElement object is a wrapper around the Accessibility API's basic \n\
-unit, the AXUIElementRef. It provides access to most of the API's functionality \n\
+unit, the `AXUIElementRef`_. It provides access to most of the API's functionality \n\
 in a highly object-oriented fashion (in other words, exactly the opposite of \n\
 how one interacts with the API itself). Its individual methods are extensively \n\
 documented with the details of their use.\n\
 \n\
 The object implements Python's mapping protocol to make accessing attributes \n\
-a more 'pythonic' experience. A typical piece of code to modify the size of a \n\
-window might take the following form::\n\
+a more 'pythonic' experience. This includes membership (i.e. 'AXRole' in \n\
+myelement), element access using the [] syntax, and the :py:func:`keys` method. \n\
+However, it will not respond to the ``len`` function, because this may cause \n\
+some semantic confusion with the functionality of the :py:func:`count` method.\n\
 \n\
-   if 'AXSize' in window_element and window_element.can_set('AXSize'):\n\
+Comparison of two AccessibleElement objects returns True if and only if their \n\
+underlying AXUIElementRef references point to the same object.\n\
+\n\
+A typical piece of code to modify the size of a window might take the following \n\
+form:\n\
+\n\
+.. code-block:: python\n\
+\n\
+    if 'AXSize' in window_element and window_element.can_set('AXSize'):\n\
         window_element.set('AXSize', (100, 100))\n\
         # or, using the element as a dictionary:\n\
         window_element['AXSize'] == (100, 100)\n\
 \n\
 Some care has been taken to manage the memory used by the CFTypeRef system, but \n\
-this has not been rigorously tested.");
+this has not been rigorously tested.\n\
+\n\
+.. _AXUIElementRef: https://developer.apple.com/library/mac/documentation/ApplicationServices/Reference/AXUIElement_header_reference/Reference/reference.html");
 
 typedef struct {
     PyObject_HEAD
@@ -81,27 +93,31 @@ raise a KeyError.\n\
 :param names: Either a single name or a series of names, all strings.\n\
 :rvalue: Either a single value's count or a tuple of the values' counts.\n\
 \n\
-A common usage might look like the following::\n\
+A common usage might look like the following:\n\
+\n\
+.. code-block:: python\n\
 \n\
     try:\n\
         role_counts = element.count('AXRole', 'AXRoleDescription')\n\
         print 'Count for AXRole: %d and AXRoleDescription: %d' % role_counts\n\
     except KeyError:\n\
-        print 'I guess those aren't available...'");
+        print 'I guess those aren\\'t available...'");
 
 static PyObject * AccessibleElement_count(AccessibleElement *, PyObject *);
 
 PyDoc_STRVAR(get_docstring, "get(*names)\n\n\
 Returns a copy of the values for the specified attribute name(s), which may be \n\
-None. If the element does not possess this/these attribute(s), this method will \n\
-raise a KeyError.\n\
+``None``. If the element does not possess this/these attribute(s), this method \n\
+will raise a ``KeyError``.\n\
 \n\
 This is the underlying method called when using an AccessibleElement as a dict.\n\
 \n\
 :param names: Either a single name or a series of names, all strings.\n\
 :rvalue: Either a single value or a tuple of the values.\n\
 \n\
-A common usage might look like the following::\n\
+A common usage might look like the following:\n\
+\n\
+.. code-block:: python\n\
 \n\
     try:\n\
         role = element.get('AXRole')\n\
@@ -109,7 +125,9 @@ A common usage might look like the following::\n\
     except KeyError:\n\
         print 'Seems this element is not available.'\n\
 \n\
-This is almost equivalent to using the element like a dictionary::\n\
+This is almost equivalent to using the element like a dictionary:\n\
+\n\
+.. code-block:: python\n\
 \n\
     if 'AXRole' in element:\n\
         print element['AXRole']\n\
@@ -119,7 +137,7 @@ This is almost equivalent to using the element like a dictionary::\n\
 static PyObject * AccessibleElement_get(AccessibleElement *, PyObject *);
 
 PyDoc_STRVAR(is_alive_docstring, "is_alive()\n\n\
-Returns True if the AXUIElementRef is still valid.");
+Returns ``True`` if the AXUIElementRef is still valid.");
 
 static PyObject * AccessibleElement_is_alive(AccessibleElement *, PyObject *);
 
@@ -133,7 +151,9 @@ This is the underlying method called when using an AccessibleElement as a dict.\
 :param str name: The name of the attribute to set.\n\
 :param value: The new value of the attribute.\n\
 \n\
-\nEach attribute may set a different kind of value. For example::\n\
+\nEach attribute may set a different kind of value. For example:\n\
+\n\
+.. code-block:: python\n\
 \n\
     if 'AXSize' in window_element and window_element.can_set('AXSize'):\n\
         window_element.set('AXSize', (100, 100))\n\
@@ -145,8 +165,14 @@ static PyObject * AccessibleElement_set(AccessibleElement *, PyObject *);
 PyDoc_STRVAR(set_timeout_docstring, "set_timeout(timeout)\n\n\
 Sets the timeout for requests to the Accessibility API for this element. To \n\
 change the value used for all elements, call this method on the system-wide \n\
-element. The default value can be restored by passing the DEFAULT_TIMEOUT \n\
-value.");
+element like so:\n\
+\n\
+.. code-block:: python\n\
+\n\
+    sr = create_systemwide_ref()\n\
+    sr.set_timeout(5.0)  # i.e. five seconds to respond\n\
+\n\
+The default value can be restored by passing the ``DEFAULT_TIMEOUT`` value.");
 
 static PyObject * AccessibleElement_set_timeout(AccessibleElement *, PyObject *);
 
@@ -154,6 +180,12 @@ static PyObject * AccessibleElement_set_timeout(AccessibleElement *, PyObject *)
 ======== */
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_9
+PyDoc_STRVAR(is_enabled_docstring, "is_enabled(prompt = True)\n\n\
+Checks whether calls to the Accessibility API are currently possible in this \n\
+context, and prompts the user to make the necessary changes in System \n\
+Preferences if necessary. This likely means allowing the Terminal application \n\
+to \'control your computer\'.");
+
 static PyObject * is_enabled(PyObject *, PyObject *, PyObject *);
 #else
 static PyObject * is_enabled(PyObject *);
@@ -170,7 +202,7 @@ element is used instead.\n\
 :param float x: The x coordinate.\n\
 :param float y: The y coordinate.\n\
 :param AccessibleElement element: The application element to use as a reference.\n\
-:rvalue: An AccessibleElement object referring to a window at the given position.");
+:rval: An :py:class:`AccessibleElement` object referring to a window at the given position.");
 
 static PyObject * element_at_position(PyObject *, PyObject *, PyObject *);
 
@@ -590,7 +622,7 @@ static PyMethodDef AccessibleElement_methods[] = {
     {"get", (PyCFunction) AccessibleElement_get, METH_VARARGS, get_docstring},
     {"set", (PyCFunction) AccessibleElement_set, METH_VARARGS, set_docstring},
     {"set_timeout", (PyCFunction) AccessibleElement_set_timeout, METH_VARARGS, set_timeout_docstring},
-    {"can_set", (PyCFunction) AccessibleElement_can_set, METH_VARARGS, NULL},
+    {"can_set", (PyCFunction) AccessibleElement_can_set, METH_VARARGS, can_set_docstring},
     {"is_alive", (PyCFunction) AccessibleElement_is_alive, METH_NOARGS, is_alive_docstring},
     {NULL, NULL}
 };
@@ -714,7 +746,7 @@ static PyObject * element_at_position(PyObject * self, PyObject * args, PyObject
  
 static PyMethodDef methods[] = {
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_9
-	{"is_enabled", (PyCFunction) is_enabled, METH_VARARGS|METH_KEYWORDS, "is_enabled(prompt = False)\n\nCheck if accessibility has been enabled on the system."},
+	{"is_enabled", (PyCFunction) is_enabled, METH_VARARGS|METH_KEYWORDS, is_enabled_docstring},
 #else
     {"is_enabled", (PyCFunction) is_enabled, METH_NOARGS, "is_enabled()\n\nCheck if accessibility has been enabled on the system."},
 #endif
