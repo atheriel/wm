@@ -398,7 +398,6 @@ static PyObject * AccessibleElement_add_notification(AccessibleElement * self, P
     CFStringRef name_strref = CFStringCreateWithCString(kCFAllocatorDefault, name_string, kCFStringEncodingUTF8);
 
     if (self->_obs == NULL) {
-        printf("two\n");
         // Get PID
         pid_t pid;
         AXError error = AXUIElementGetPid(self->_ref, &pid);
@@ -416,22 +415,17 @@ static PyObject * AccessibleElement_add_notification(AccessibleElement * self, P
         }
         self->_obs = temp;
 
-        printf("four\n");
-
+        // Add the observer to the run loop
         CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(self->_obs), kCFRunLoopDefaultMode);
-
-        printf("4.5\n");
     }
 
     // Add the notification
-    AXError error = AXObserverAddNotification(self->_obs, self->_ref, name_strref, self->_callable);
+    AXError error = AXObserverAddNotification(self->_obs, self->_ref, name_strref, self);
     if (error != kAXErrorSuccess) {
-        printf("five\n");
         handleAXErrors(error, "notification");
         return NULL;
     }
 
-    printf("six\n");
     Py_RETURN_NONE;
 }
 
@@ -1034,12 +1028,34 @@ static void handleAXErrors(char * attribute_name, AXError error) {
     }
 }
 
-static void NotifcationCallback(AXObserverRef obs, AXUIElementRef ref, CFStringRef notification, void * callable) {
+static void NotifcationCallback(AXObserverRef obs, AXUIElementRef ref, CFStringRef notification, void * element) {
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    PyObject * call = (PyObject *) callable;
-    PyObject * result = PyObject_CallObject(call, Py_BuildValue("(s)", parseCFTypeRef(notification)));
+    AccessibleElement * elem = (AccessibleElement *) element;
+    PyObject * args = NULL;
+
+    // The notification is a CFStringRef, so try to decode it to a char *
+    CFIndex length = CFStringGetLength(notification);
+    if (length == 0) {
+        args = Py_BuildValue("(OO)", Py_None, elem);
+    } else { // Non-empty string
+        char * buffer = CFStringGetCStringPtr(notification, kCFStringEncodingUTF8); // Fast way
+        if (!buffer) {
+            // Slow way
+            CFIndex maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8);
+            buffer = (char *) malloc(maxSize);
+            if (CFStringGetCString(notification, buffer, maxSize, kCFStringEncodingUTF8)) {
+                args = Py_BuildValue("(sO)", buffer, elem);
+            } else {
+                args = Py_BuildValue("(OO)", Py_None, elem);
+            }
+        } else {
+            args = Py_BuildValue("(sO)", buffer, elem);
+        }
+    }
+    PyObject * result = PyObject_CallObject(elem->_callable, args);
+    Py_XDECREF(args);
     Py_XDECREF(result);
 
     PyGILState_Release(gstate);
