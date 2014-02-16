@@ -9,14 +9,6 @@ if mac_ver()[0].startswith('10.9'):
 else:
     header_dir = '/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/Headers'
 
-accessibility = Extension('wm._accessibility',
-    sources = ['wm/_accessibility.c'],
-    include_dirs = [header_dir],
-    # Uncomment the next line to include debug symbols while compiling
-    # extra_compile_args = ['-g'],
-    extra_link_args = ['-framework', 'ApplicationServices', '-v']
-)
-
 shadows = Extension('wm._shadows',
     sources = ['wm/_shadows.c'],
     extra_link_args = ['-framework', 'Cocoa', '-v']
@@ -43,12 +35,13 @@ setup(
 
     packages = ['wm'],
     py_modules = ['wm.config', 'wm.daemon', 'wm.elements', 'wm.errors', 'wm.manager', 'wm.utils'],
-    ext_modules = [accessibility, shadows],
+    ext_modules = [shadows,],
     scripts = ['scripts/wm'],
     package_data = {'wm': ['config/*.rc']},
 
     install_requires = [
         'docutils>=0.3',
         'docopt>=0.6.1',
+        'accessibility>=0.3'
     ]
 )

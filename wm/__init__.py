@@ -2,5 +2,3 @@
 
 __version__ = '0.1'
 __license__ = 'ISC'
-
-from wm._accessibility import is_enabled as accessibility_check  # noqa

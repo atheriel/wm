@@ -1,7 +1,6 @@
 import logging
+import accessibility as acbl
 from AppKit import NSWorkspace
-
-import _accessibility as acbl
 
 
 SYSTEMWIDE_ELEMENT = acbl.create_systemwide_ref()
@@ -18,8 +17,7 @@ class AccessibleApplication(object):
         self._windows = []
 
         # Gets the windows
-        num_windows = self._element.count('AXWindows')
-        if num_windows != 0:
+        if 'AXWindows' in self._element:
             for ref in self._element['AXWindows']:
                 self._windows.append(AccessibleWindow(ref, self))
 
@@ -63,7 +61,7 @@ class AccessibleWindow(object):
     @property
     def position(self):
         if 'AXPosition' in self._element:
-            return self._element.get('AXPosition')
+            return self._element['AXPosition']
         else:
             logging.debug('No AXPosition property found for window in app %s.', self._parent.title)
             return None
@@ -164,7 +162,13 @@ def get_accessible_applications(ignored_bundles = []):
             continue
 
         # Create AXUIElementRef
-        ref = acbl.create_application_ref(application.processIdentifier())
+        try:
+            ref = acbl.create_application_ref(application.processIdentifier())
+        except ValueError as e:
+            # This should only happpen when the element does not respond to AXRole -- which means we don't want it anyway
+            logging.debug('Application with bundle <%s> and PID %d is being uncooperative.', application.bundleIdentifier(), application.processIdentifier())
+            continue
+        
         try:
             if ref['AXRole'] == u'AXApplication':
                 running_apps.append(AccessibleApplication(ref, application.bundleIdentifier()))

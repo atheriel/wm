@@ -32,9 +32,13 @@ Options:
 Licensed under the %(license)s.
 """ % {'desc': wm.__doc__, 'license': wm.__license__}
 
-if not wm.accessibility_check():
-    print 'Accessibility must be enabled on this system before this program can run:'
-    print '    System Preferences -> Accessibility -> Enable access for assistive devices.'
+try:
+    import accessibility
+    if not accessibility.is_enabled():
+        print 'Accessibility must be enabled before this program can run.'
+        exit(1)
+except ImportError:
+    print 'wm depends on the Accessibility module, which does not seem to be installed.'
     exit(1)
 
 import signal
