@@ -35,7 +35,7 @@ setup(
 
     packages = ['wm'],
     py_modules = ['wm.config', 'wm.daemon', 'wm.elements', 'wm.errors', 'wm.manager', 'wm.utils'],
-    ext_modules = [shadows,],
+    ext_modules = [shadows],
     scripts = ['scripts/wm'],
     package_data = {'wm': ['config/*.rc']},
 

@@ -168,7 +168,7 @@ def get_accessible_applications(ignored_bundles = []):
             # This should only happpen when the element does not respond to AXRole -- which means we don't want it anyway
             logging.debug('Application with bundle <%s> and PID %d is being uncooperative.', application.bundleIdentifier(), application.processIdentifier())
             continue
-        
+
         try:
             if ref['AXRole'] == u'AXApplication':
                 running_apps.append(AccessibleApplication(ref, application.bundleIdentifier()))

@@ -5,17 +5,46 @@ from Quartz import *
 import config
 import daemon
 import elements
+import utils
 
 
-def _add_hotkey_callback(func):
+def _add_hotkey_callback():
+    """
+    Sets up the callbacks for global hotkeys.
+    """
+    # Allows calling arbitrary methods of WindowManager with hotkeys
+    def hotkey_handler(proxy, etype, event, refcon):
+        keyEvent = NSEvent.eventWithCGEvent_(event)
+        flags = keyEvent.modifierFlags()
+
+        if flags != 0:  # any key event we want deals with mod keys
+            code = keyEvent.keyCode()
+
+            # Cycle through registered hotkeys
+            for name, value in config.HOTKEYS.items():
+                if (value[0] & flags) and value[1] == code:
+                    # call the name of the hotkey as a function
+                    getattr(WindowManager(), name)()
+                    logging.debug('Called method \'%s\' in response to hotkey.', name)
+                    continue
+
     mask = CGEventMaskBit(kCGEventKeyDown)
-    tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, func, None)
+    tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, hotkey_handler, None)
     tap_source = CFMachPortCreateRunLoopSource(None, tap, 0)
     CFRunLoopAddSource(CFRunLoopGetCurrent(), tap_source, kCFRunLoopDefaultMode)
 
     # Enable the tap
     CGEventTapEnable(tap, True)
     logging.info('Global hotkeys are now being watched.')
+
+
+def _reflow_callback(notification, element):
+    """
+    Provides the callback for all watched notifications exposed through the Accessibility API.
+    """
+    if notification in ['AXWindowMiniaturized', 'AXWindowCreated']:
+        WindowManager().reflow()
+    logging.debug('Notification <%s> for application <%s>.', notification, element['AXTitle'])
 
 
 class ObserverHelper(NSObject):
@@ -25,7 +54,6 @@ class ObserverHelper(NSObject):
     def init(self):
         self = super(ObserverHelper, self).init()
         if self is not None:
-            self.window_manager = None
 
             # Start watching notifications
             nc = NSWorkspace.sharedWorkspace().notificationCenter()
@@ -41,25 +69,22 @@ class ObserverHelper(NSObject):
 
     @objc.typedSelector(b'v@:@')
     def appLaunched_(self, notification):
-        if self.window_manager is not None:
-            logging.info('New app launched.')
-            bundle = notification.userInfo()['NSApplicationBundleIdentifier']
-            pid = notification.userInfo()['NSApplicationProcessIdentifier']
-            self.window_manager._add_app(pid, bundle)
+        logging.info('New app launched.')
+        bundle = notification.userInfo()['NSApplicationBundleIdentifier']
+        pid = notification.userInfo()['NSApplicationProcessIdentifier']
+        WindowManager()._add_app(pid, bundle)
 
     @objc.typedSelector(b'v@:@')
     def appTerminated_(self, notification):
-        if self.window_manager is not None:
-            name = notification.userInfo()['NSApplicationName']
-            self.window_manager._remove_app(name)
+        name = notification.userInfo()['NSApplicationName']
+        WindowManager()._remove_app(name)
 
     @objc.typedSelector(b'v@:@')
     def appHidden_(self, notification):
         try:
             name = notification.userInfo()['NSWorkspaceApplicationKey'].localizedName()
             logging.debug('Application \'%s\' has been hidden.', name)
-            if self.window_manager is not None:
-                self.window_manager.reflow()
+            WindowManager().reflow()
         except KeyError:
             logging.debug('The notification did not contain the expected dictionary entry.')
 
@@ -68,8 +93,7 @@ class ObserverHelper(NSObject):
         try:
             name = notification.userInfo()['NSWorkspaceApplicationKey'].localizedName()
             logging.debug('Application \'%s\' is no longer hidden.', name)
-            if self.window_manager is not None:
-                self.window_manager.reflow()
+            WindowManager().reflow()
         except KeyError:
             logging.debug('The notification did not contain the expected dictionary entry.')
 
@@ -82,6 +106,8 @@ class WindowManager(object):
     """
     Defines a class that should manage windows on OS X.
     """
+    __metaclass__ = utils.SingletonMetaclass
+
     def __init__(self, config_file = None):
         logging.info('Starting window manager.')
 
@@ -96,6 +122,8 @@ class WindowManager(object):
         apps = elements.get_accessible_applications(config.IGNORED_BUNDLES)
         for app in apps:
             self._apps[app.title] = app
+            app._element.set_callback(_reflow_callback)
+            app._element.watch('AXWindowMiniaturized', 'AXWindowCreated')
             for win in app._windows:
                 self._add_window(win)
 
@@ -152,30 +180,11 @@ class WindowManager(object):
 
 class WindowManagerDaemon(daemon.Daemon):
     def run(self):
-        # New window manager & notification observer
-        WM = WindowManager()
-        observer = ObserverHelper.new()
-        observer.window_manager = WM
-
-        WM.reflow()
-
-        # Allows calling arbitrary methods of WindowManager with hotkeys
-        def hotkey_handler(proxy, etype, event, refcon):
-            keyEvent = NSEvent.eventWithCGEvent_(event)
-            flags = keyEvent.modifierFlags()
-
-            if flags != 0:  # any key event we want deals with mod keys
-                code = keyEvent.keyCode()
-
-                # Cycle through registered hotkeys
-                for name, value in config.HOTKEYS.items():
-                    if (value[0] & flags) and value[1] == code:
-                        # call the name of the hotkey as a function
-                        getattr(WM, name)()
-                        logging.debug('Called method \'%s\' in response to hotkey.', name)
-                        continue
-
-        _add_hotkey_callback(hotkey_handler)
+        # New window manager & notification observer, as well as the global hotkey handler
+        WindowManager()
+        observer = ObserverHelper.new()  # noqa
+        WindowManager().reflow()
+        _add_hotkey_callback()
 
         # Run app loop
         try:
