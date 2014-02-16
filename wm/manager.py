@@ -8,37 +8,7 @@ import elements
 import utils
 
 
-def _add_hotkey_callback():
-    """
-    Sets up the callbacks for global hotkeys.
-    """
-    # Allows calling arbitrary methods of WindowManager with hotkeys
-    def hotkey_handler(proxy, etype, event, refcon):
-        keyEvent = NSEvent.eventWithCGEvent_(event)
-        flags = keyEvent.modifierFlags()
-
-        if flags != 0:  # any key event we want deals with mod keys
-            code = keyEvent.keyCode()
-
-            # Cycle through registered hotkeys
-            for name, value in config.HOTKEYS.items():
-                if (value[0] & flags) and value[1] == code:
-                    # call the name of the hotkey as a function
-                    getattr(WindowManager(), name)()
-                    logging.debug('Called method \'%s\' in response to hotkey.', name)
-                    continue
-
-    mask = CGEventMaskBit(kCGEventKeyDown)
-    tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, hotkey_handler, None)
-    tap_source = CFMachPortCreateRunLoopSource(None, tap, 0)
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), tap_source, kCFRunLoopDefaultMode)
-
-    # Enable the tap
-    CGEventTapEnable(tap, True)
-    logging.info('Global hotkeys are now being watched.')
-
-
-def _reflow_callback(notification, element):
+def _accessibility_notifications_callback(notification, element):
     """
     Provides the callback for all watched notifications exposed through the Accessibility API.
     """
@@ -102,16 +72,54 @@ class ObserverHelper(NSObject):
         logging.debug('User has changed spaces.')
 
 
-class WindowManager(object):
+class WindowManager(daemon.Daemon):
     """
     Defines a class that should manage windows on OS X.
     """
     __metaclass__ = utils.SingletonMetaclass
 
-    def __init__(self, config_file = None):
-        logging.info('Starting window manager.')
+    def __init__(self, pidfile, config_file = None):
+        super(WindowManager, self).__init__(pidfile)
 
         self.update(config_file)
+
+    def run(self):
+        # Create notification observer
+        observer = ObserverHelper.new()  # noqa
+        
+        # Allows calling arbitrary methods of WindowManager with hotkeys
+        def hotkey_handler(proxy, etype, event, refcon):
+            keyEvent = NSEvent.eventWithCGEvent_(event)
+            flags = keyEvent.modifierFlags()
+
+            if flags != 0:  # any key event we want deals with mod keys
+                code = keyEvent.keyCode()
+
+                # Cycle through registered hotkeys
+                for name, value in config.HOTKEYS.items():
+                    if (value[0] & flags) and value[1] == code:
+                        # call the name of the hotkey as a function
+                        getattr(WindowManager(), name)()
+                        logging.debug('Called method \'%s\' in response to hotkey.', name)
+                        continue
+
+        # Register the callback for keyboard events
+        mask = CGEventMaskBit(kCGEventKeyDown)
+        tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, mask, hotkey_handler, None)
+        tap_source = CFMachPortCreateRunLoopSource(None, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), tap_source, kCFRunLoopDefaultMode)
+
+        # Enable the tap
+        CGEventTapEnable(tap, True)
+        logging.info('Global hotkeys are now being watched.')
+
+        self.reflow()
+
+        # Run app loop
+        try:
+            CFRunLoopRun()
+        except KeyboardInterrupt:
+            logging.info('Stopping window manager.')
 
     def update(self, config_file = None):
         self._apps = dict()
@@ -122,7 +130,7 @@ class WindowManager(object):
         apps = elements.get_accessible_applications(config.IGNORED_BUNDLES)
         for app in apps:
             self._apps[app.title] = app
-            app._element.set_callback(_reflow_callback)
+            app._element.set_callback(_accessibility_notifications_callback)
             app._element.watch('AXWindowMiniaturized', 'AXWindowCreated')
             for win in app._windows:
                 self._add_window(win)
@@ -176,18 +184,3 @@ class WindowManager(object):
             logging.debug('Added window for application %s.', window._parent.title)
         else:
             logging.debug('Window for application %s is not resizable. Ignoring it.', window._parent.title)
-
-
-class WindowManagerDaemon(daemon.Daemon):
-    def run(self):
-        # New window manager & notification observer, as well as the global hotkey handler
-        WindowManager()
-        observer = ObserverHelper.new()  # noqa
-        WindowManager().reflow()
-        _add_hotkey_callback()
-
-        # Run app loop
-        try:
-            CFRunLoopRun()
-        except KeyboardInterrupt:
-            logging.info('Stopping window manager.')

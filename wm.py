@@ -80,7 +80,7 @@ def main():
         format = '[%(asctime)s][%(levelname)s] %(message)s',
         datefmt = '%y-%m-%d %H:%M:%S')
 
-    daemon = wm.manager.WindowManagerDaemon('/tmp/wm-daemon.pid')
+    daemon = wm.manager.WindowManager('/tmp/wm-daemon.pid')
 
     if args['start']:
         logging.info('Starting daemon...')
