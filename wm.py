@@ -70,36 +70,16 @@ def main():
         copy_config()
         exit(0)
 
-    import logging
-    import wm.manager
-
-    logging.basicConfig(
-        filename = "/tmp/wm.log",
-        filemode = "w",
-        level = getattr(logging, args['--log-level'].upper()),
-        format = '[%(asctime)s][%(levelname)s] %(message)s',
-        datefmt = '%y-%m-%d %H:%M:%S')
-
-    daemon = wm.manager.WindowManager('/tmp/wm-daemon.pid')
+    daemon = wm.WindowManager('/tmp/wm-daemon.pid')
 
     if args['start']:
-        logging.info('Starting daemon...')
-        daemon.start()
+        daemon.start(loglevel = args['--log-level'].upper())
 
     elif args['stop']:
-        logging.info('Stopping daemon...')
-        daemon.stop()
+        daemon.stop(loglevel = args['--log-level'].upper())
 
     else:
-        # Logs to console as well
-        console = logging.StreamHandler()
-        console.setFormatter(logging.Formatter(
-            fmt="[%(asctime)s][%(levelname)s] %(message)s",
-            datefmt="%H:%M:%S"))
-        logging.getLogger().addHandler(console)
-        console.setLevel(getattr(logging, args['--log-level'].upper()))
-
-        daemon.run()
+        wm.main(loglevel = args['--log-level'].upper())
 
 if __name__ == "__main__":
     main()

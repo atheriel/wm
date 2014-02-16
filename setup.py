@@ -1,7 +1,6 @@
 from distutils.core import setup, Extension
 from platform import mac_ver
 
-import wm
 
 # Deal with the new location of headers in Mavericks
 if mac_ver()[0].startswith('10.9'):
@@ -16,11 +15,11 @@ shadows = Extension('wm._shadows',
 
 setup(
     name = 'wm',
-    description = wm.__doc__,
-    version = wm.__version__,
+    description = 'A window manager for OS X, written in Python.',
+    version = '0.2.0',
     author_email = 'atheriel@gmail.com',
     url = 'https://github.com/atheriel/wm',
-    license = wm.__license__,
+    license = 'ISCL',
     platforms = ['MacOS X'],
     classifiers = [
         'Development Status :: 3 - Alpha',

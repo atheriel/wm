@@ -1,9 +1,13 @@
+__doc__ = '''wm.elements
+
+This module provides some wrappers around the low-level Accessibility API
+exposed by the ``accessibility`` library, as well as some functions for
+retrieving and creating 'accessible' applications.
+'''
+
 import logging
 import accessibility as acbl
 from AppKit import NSWorkspace
-
-
-SYSTEMWIDE_ELEMENT = acbl.create_systemwide_ref()
 
 
 class AccessibleApplication(object):
